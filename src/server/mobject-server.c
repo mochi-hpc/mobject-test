@@ -176,12 +176,19 @@ static hg_return_t mobject_write_op_ult(hg_handle_t h)
     vargs.client_addr = info->addr;
     vargs.bulk_handle = in.write_op->bulk_handle;
 
+    char *test123 = "TEST123";
+    oid_t oid = 0;
+    hg_size_t s = sizeof(oid);
+    sdskv_get(vargs.srv_ctx->sdskv_ph, vargs.srv_ctx->name_db_id, test123, strlen(test123)+1,
+        &oid, &s);
+#if 0
     /* Execute the operation chain */
     //print_write_op(in.write_op, in.object_name);
 #ifdef FAKE_CPP_SERVER
     fake_write_op(in.write_op, &vargs);
 #else
     core_write_op(in.write_op, &vargs);
+#endif
 #endif
 
     // set the return value of the RPC
@@ -229,12 +236,14 @@ static hg_return_t mobject_read_op_ult(hg_handle_t h)
     vargs.client_addr = info->addr;
     vargs.bulk_handle = in.read_op->bulk_handle;
 
+#if 0
     /* Compute the result. */
     //print_read_op(in.read_op, in.object_name);
 #ifdef FAKE_CPP_SERVER
     fake_read_op(in.read_op, &vargs);
 #else
     core_read_op(in.read_op, &vargs);
+#endif
 #endif
 
     out.responses = resp;
