@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     /* Margo initialization */
-    mid = margo_init(server_opts.listen_addr, MARGO_SERVER_MODE, 0, -1);
+    mid = margo_init(server_opts.listen_addr, MARGO_SERVER_MODE, 0, 2);
     if (mid == MARGO_INSTANCE_NULL)
     {
         fprintf(stderr, "Error: Unable to initialize margo\n");
