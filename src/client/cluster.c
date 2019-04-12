@@ -334,12 +334,15 @@ int mobject_store_write_op_operate(mobject_store_write_op_t write_op,
 {
     mobject_provider_handle_t mph = MOBJECT_PROVIDER_HANDLE_NULL;
     uint64_t oid_hash = sdbm_hash(oid);
-    unsigned long server_idx;
-    ch_placement_find_closest(io->cluster->ch_instance, oid_hash, 1, &server_idx);
+
+    const char *sep = strchr(oid, '.');
+    const char *str_rank = ++sep;
+    int rank = atoi(str_rank);
+    int gsize = ssg_get_group_size(io->cluster->gid);
+    unsigned long server_idx = rank % gsize;
+
     // XXX multiple providers may be in the same node (with distinct mplex ids)
     hg_addr_t svr_addr = ssg_get_addr(io->cluster->gid, server_idx);
-
-
     // TODO for now multiplex id is hard-coded as 1
     int r = mobject_provider_handle_create(io->cluster->mobject_clt, svr_addr, 1, &mph);
     if(r != 0) return r;
@@ -412,8 +415,13 @@ int mobject_store_read_op_operate(mobject_store_read_op_t read_op,
 {
     mobject_provider_handle_t mph = MOBJECT_PROVIDER_HANDLE_NULL;
     uint64_t oid_hash = sdbm_hash(oid);
-    unsigned long server_idx;
-    ch_placement_find_closest(ioctx->cluster->ch_instance, oid_hash, 1, &server_idx);
+
+    const char *sep = strchr(oid, '.');
+    const char *str_rank = ++sep;
+    int rank = atoi(str_rank);
+    int gsize = ssg_get_group_size(ioctx->cluster->gid);
+    unsigned long server_idx = rank % gsize;
+
     // XXX multiple providers may be in the same node (with distinct mplex ids)
     hg_addr_t svr_addr = ssg_get_addr(ioctx->cluster->gid, server_idx);
     // TODO for now multiplex id is hard-coded as 1
