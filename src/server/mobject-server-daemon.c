@@ -37,32 +37,35 @@ typedef struct {
     size_t          pool_size;
     char *          kv_path;
     sdskv_db_type_t kv_backend;
+    int             disable_pipelining;
 } mobject_server_options;
 
 static void usage(void)
 {
     fprintf(stderr, "Usage: mobject-server-daemon [OPTIONS] <listen_addr> <cluster_file>\n");
-    fprintf(stderr, "  <listen_addr>    the Mercury address to listen on\n");
-    fprintf(stderr, "  <cluster_file>   the file to write mobject cluster connect info to\n");
+    fprintf(stderr, "  <listen_addr>            the Mercury address to listen on\n");
+    fprintf(stderr, "  <cluster_file>           the file to write mobject cluster connect info to\n");
     fprintf(stderr, "  OPTIONS:\n");
-    fprintf(stderr, "    --handler-xstreams Number of xtreams to user for RPC handlers [default: 4]\n"); 
-    fprintf(stderr, "    --pool-file        Bake pool location [default: /dev/shm/mobject.dat]\n");
-    fprintf(stderr, "    --pool-size        Bake pool size for each server [default: 1GiB]\n");
-    fprintf(stderr, "    --kv-backend       SDSKV backend to use (mapdb, leveldb, berkeleydb) [default: stdmap]\n");
-    fprintf(stderr, "    --kv-path          SDSKV storage location [default: /dev/shm]\n");
+    fprintf(stderr, "    --handler-xstreams     Number of xtreams to user for RPC handlers [default: 4]\n"); 
+    fprintf(stderr, "    --pool-file            Bake pool location [default: /dev/shm/mobject.dat]\n");
+    fprintf(stderr, "    --pool-size            Bake pool size for each server [default: 1GiB]\n");
+    fprintf(stderr, "    --kv-backend           SDSKV backend to use (mapdb, leveldb, berkeleydb) [default: stdmap]\n");
+    fprintf(stderr, "    --kv-path              SDSKV storage location [default: /dev/shm]\n");
+    fprintf(stderr, "    --disable-pipelining   Disable use of Bake pipelining\n");
     exit(-1);
 }
 
 static void parse_args(int argc, char **argv, mobject_server_options *opts)
 {
     int c;
-    char *short_options = "x:f:s:p:k:";
+    char *short_options = "x:f:s:p:k:d";
     struct option long_options[] = {
         {"handler-xstreams", required_argument, 0, 'x'},
         {"pool-file", required_argument, 0, 'f'},
         {"pool-size", required_argument, 0, 's'},
         {"kv-path", required_argument, 0, 'p'},
         {"kv-backend", required_argument, 0, 'k'},
+        {"disable-pipelining", no_argument, 0, 'd'},
     };
 
     while ((c = getopt_long(argc, argv, short_options, long_options, NULL)) != -1)
@@ -91,6 +94,9 @@ static void parse_args(int argc, char **argv, mobject_server_options *opts)
                 else
                     usage();
                 break;
+            case 'd':
+                opts->disable_pipelining = 1;
+                break;
             default:
                 usage();
         }
@@ -117,6 +123,7 @@ int main(int argc, char *argv[])
         .pool_size = 1*1024*1024*1024, /* 1 GiB default */
         .kv_path = "/dev/shm", /* default sdskv path */
         .kv_backend = KVDB_MAP, /* in-memory map default */
+        .disable_pipelining = 0, /* use pipelining by default */
     }; 
     margo_instance_id mid;
     int ret;
@@ -164,7 +171,8 @@ int main(int argc, char *argv[])
     if (ret != 0) bake_perror("bake_provider_add_storage_target", ret);
     ASSERT(ret == 0, "bake_provider_add_storage_target() failed to add target %s (ret = %d)\n",
             server_opts.pool_file, ret);
-    bake_provider_set_conf(bake_prov, "pipeline_enabled", "1");
+    if (!server_opts.disable_pipelining)
+        bake_provider_set_conf(bake_prov, "pipeline_enabled", "1");
 
     /* Bake provider handle initialization from self addr */
     bake_client_data bake_clt_data;
