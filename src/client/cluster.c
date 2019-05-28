@@ -33,6 +33,8 @@ int mobject_store_create(mobject_store_t *cluster, const char * const id)
 
     (void)id; /* XXX: id unused in mobject */
 
+    printf("***SDS MOBJECT IN RR MODE\n");
+
     /* allocate a new cluster handle and set some fields */
     cluster_handle = (struct mobject_store_handle*)calloc(1,sizeof(*cluster_handle));
     if (!cluster_handle)
