@@ -35,11 +35,11 @@ int mobject_store_aio_wait_for_complete(mobject_store_completion_t c)
 		return -1;
 	}
     
-    MOBJECT_ASSERT(c->request != MARGO_REQUEST_NULL, "Invalid completion handle");
+    MOBJECT_ASSERT(c->request != MOBJECT_REQUEST_NULL, "Invalid completion handle");
     int ret;
     int r = mobject_aio_wait(c->request, &ret);
     c->ret_value = ret;
-    c->request = MARGO_REQUEST_NULL;
+    c->request = MOBJECT_REQUEST_NULL;
 
     if(c->cb_safe)
         (c->cb_safe)(c, c->cb_arg);
@@ -79,7 +79,7 @@ int mobject_store_aio_get_return_value(mobject_store_completion_t c)
 void mobject_store_aio_release(mobject_store_completion_t c)
 {
     if(c == MOBJECT_COMPLETION_NULL) return;
-    MOBJECT_ASSERT(c->request == MARGO_REQUEST_NULL,
+    MOBJECT_ASSERT(c->request == MOBJECT_REQUEST_NULL,
         "Trying to release a completion handle before operation completed (will lead to memory leaks)");
     free(c);
 }
