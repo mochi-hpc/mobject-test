@@ -15,8 +15,8 @@ MOBJECT_CLUSTER_FILE=$TEST_DIR/cluster.gid
 
 ##############
 
-# start 1 server with 2 second wait, 20s timeout
-mobject_test_start_servers 1 2 20 $MOBJECT_CLUSTER_FILE
+# start 1 server with 5 second wait, 20s timeout
+mobject_test_start_servers 1 5 20 $MOBJECT_CLUSTER_FILE
 
 ##############
 
