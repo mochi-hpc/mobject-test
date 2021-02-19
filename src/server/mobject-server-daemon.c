@@ -163,13 +163,19 @@ int main(int argc, char *argv[])
     ret = bake_provider_register(mid, bake_mplex_id, &bpii, &bake_prov);
     if (ret != 0) bake_perror("bake_provider_register", ret);
     ASSERT(ret == 0, "bake_provider_register() failed (ret = %d)\n", ret);
-    /* attempt to create bake target in case it does not exist */
-    ret = bake_provider_create_target(bake_prov, server_opts.pool_file, server_opts.pool_size, &bake_tid);
-    ASSERT((ret == 0 || ret == BAKE_ERR_EXIST), "bake_provider_create_target() failed (ret = %d)\n", ret);
+
+    /* attempt to attach target.  If that fails because target doesn't
+     * exist, then create it.
+     */
     ret = bake_provider_attach_target(bake_prov, server_opts.pool_file, &bake_tid);
-    if (ret != 0) bake_perror("bake_provider_attach_target", ret);
-    ASSERT(ret == 0, "bake_provider_attach_target() failed to add target %s (ret = %d)\n",
+    if (ret != 0 && ret != BAKE_ERR_NOENT) bake_perror("bake_provider_attach_target", ret);
+    ASSERT(ret == 0 || ret == BAKE_ERR_NOENT, "bake_provider_attach_target() failed to add target %s (ret = %d)\n",
             server_opts.pool_file, ret);
+    if(ret == BAKE_ERR_NOENT) {
+        /* target did not exist yet; create it */
+        ret = bake_provider_create_target(bake_prov, server_opts.pool_file, server_opts.pool_size, &bake_tid);
+        ASSERT(ret == 0, "bake_provider_create_target() failed (ret = %d)\n", ret);
+    }
 
     /* Bake provider handle initialization from self addr */
     bake_client_data bake_clt_data;
