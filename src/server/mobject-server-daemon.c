@@ -153,26 +153,29 @@ int main(int argc, char *argv[])
     margo_addr_self(mid, &self_addr);
 
     /* Bake provider initialization */
-    /* XXX mplex id and target name should be taken from config file */
-    uint8_t bake_mplex_id = 1;
-    /* create the bake target if it does not exist */
-    if(-1 == access(server_opts.pool_file, F_OK)) {
-        // XXX creating a pool of 10MB - this should come from a config file
-        ret = bake_makepool(server_opts.pool_file, server_opts.pool_size, 0664);
-        if (ret != 0) bake_perror("bake_makepool", ret);
-        ASSERT(ret == 0, "bake_makepool() failed (ret = %d)\n", ret);
-    }
+    /* XXX mplex id should be taken from config file */
+    uint16_t bake_mplex_id = 1;
     bake_provider_t bake_prov;
     bake_target_id_t bake_tid;
-    ret = bake_provider_register(mid, bake_mplex_id, BAKE_ABT_POOL_DEFAULT, &bake_prov);
+    struct bake_provider_init_info bpii = {0};
+    if (!server_opts.disable_pipelining)
+        bpii.json_config = "{\"pipeline_enable\":true}";
+    ret = bake_provider_register(mid, bake_mplex_id, &bpii, &bake_prov);
     if (ret != 0) bake_perror("bake_provider_register", ret);
     ASSERT(ret == 0, "bake_provider_register() failed (ret = %d)\n", ret);
-    ret = bake_provider_add_storage_target(bake_prov, server_opts.pool_file, &bake_tid);
-    if (ret != 0) bake_perror("bake_provider_add_storage_target", ret);
-    ASSERT(ret == 0, "bake_provider_add_storage_target() failed to add target %s (ret = %d)\n",
+
+    /* attempt to attach target.  If that fails because target doesn't
+     * exist, then create it.
+     */
+    ret = bake_provider_attach_target(bake_prov, server_opts.pool_file, &bake_tid);
+    if (ret != 0 && ret != BAKE_ERR_NOENT) bake_perror("bake_provider_attach_target", ret);
+    ASSERT(ret == 0 || ret == BAKE_ERR_NOENT, "bake_provider_attach_target() failed to add target %s (ret = %d)\n",
             server_opts.pool_file, ret);
-    if (!server_opts.disable_pipelining)
-        bake_provider_set_conf(bake_prov, "pipeline_enabled", "1");
+    if(ret == BAKE_ERR_NOENT) {
+        /* target did not exist yet; create it */
+        ret = bake_provider_create_target(bake_prov, server_opts.pool_file, server_opts.pool_size, &bake_tid);
+        ASSERT(ret == 0, "bake_provider_create_target() failed (ret = %d)\n", ret);
+    }
 
     /* Bake provider handle initialization from self addr */
     bake_client_data bake_clt_data;

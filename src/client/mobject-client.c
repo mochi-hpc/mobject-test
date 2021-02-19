@@ -81,7 +81,7 @@ int mobject_client_finalize(mobject_client_t client)
 {
     if(client->num_provider_handles != 0) {
         fprintf(stderr,
-                "[MOBJECT] Warning: %d provider handles not released before mobject_client_finalize was called\n",
+                "[MOBJECT] Warning: %lu provider handles not released before mobject_client_finalize was called\n",
                 client->num_provider_handles);
     }
     free(client->client_addr);
