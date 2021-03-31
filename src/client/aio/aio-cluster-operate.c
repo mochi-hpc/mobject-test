@@ -21,8 +21,6 @@ int mobject_store_aio_write_op_operate(
         time_t *mtime,
         int flags)
 {   
-    hg_return_t ret;
-
     // XXX pick other servers using ch-placement
     ssg_member_id_t svr_id = ssg_get_group_member_id_from_rank(io->cluster->gid, 0);
     hg_addr_t svr_addr = ssg_get_group_member_addr(io->cluster->gid, svr_id);
@@ -44,8 +42,6 @@ int mobject_store_aio_read_op_operate(mobject_store_read_op_t read_op,
         const char *oid,
         int flags)
 {   
-    hg_return_t ret;
-
     // XXX pick other servers using ch-placement
     ssg_member_id_t svr_id = ssg_get_group_member_id_from_rank(io->cluster->gid, 0);
     hg_addr_t svr_addr = ssg_get_group_member_addr(io->cluster->gid, svr_id);

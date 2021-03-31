@@ -59,6 +59,8 @@ int mobject_sdskv_provider_setup(
     config.db_comp_fn_name = "mobject_omap_map_compare";
     ret = sdskv_provider_attach_database(sdskv_prov, &config, &omap_map_id);
     ASSERT(ret == 0, "sdskv_provider_attach_database() failed to add database \"omap_map\" (ret = %d)\n", ret);
+
+    return(0);
 }
 
 static int oid_map_compare(const void* k1, size_t sk1, const void* k2, size_t sk2)

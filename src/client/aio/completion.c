@@ -17,7 +17,6 @@ int mobject_store_aio_create_completion(void *cb_arg,
                                 mobject_store_callback_t cb_safe,
                                 mobject_store_completion_t *pc)
 {
-	int r;
 	mobject_store_completion_t completion = 
 		(mobject_store_completion_t)calloc(1, sizeof(*completion));
 	MOBJECT_ASSERT(completion != 0, "Could not allocate mobject_store_completion_t object"); 
@@ -38,6 +37,9 @@ int mobject_store_aio_wait_for_complete(mobject_store_completion_t c)
     MOBJECT_ASSERT(c->request != MOBJECT_REQUEST_NULL, "Invalid completion handle");
     int ret;
     int r = mobject_aio_wait(c->request, &ret);
+    if(r != 0)
+        return(r);
+
     c->ret_value = ret;
     c->request = MOBJECT_REQUEST_NULL;
 
@@ -47,7 +49,7 @@ int mobject_store_aio_wait_for_complete(mobject_store_completion_t c)
     if(c->cb_complete)
         (c->cb_complete)(c, c->cb_arg);
 
-	return 0;
+    return 0;
 }
 
 int mobject_store_aio_is_complete(mobject_store_completion_t c)
@@ -68,7 +70,6 @@ int mobject_store_aio_is_complete(mobject_store_completion_t c)
 
 int mobject_store_aio_get_return_value(mobject_store_completion_t c)
 {
-	int r;
 	if(c == MOBJECT_COMPLETION_NULL) {
 		MOBJECT_LOG("Warning: passing NULL to mobject_store_aio_get_return_value");
 		return -1;

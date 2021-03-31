@@ -66,6 +66,9 @@ void prepare_write_op(margo_instance_id mid, mobject_store_write_op_t write_op)
 				(wr_action_append_t)action, pointers+i, lengths+i);
 			i += 1;
 			break;
+                default:
+                    /* nothing to do for other op types */
+                    break;
 		}	
 	}
 
@@ -75,7 +78,7 @@ void prepare_write_op(margo_instance_id mid, mobject_store_write_op_t write_op)
     						pointers, lengths, HG_BULK_READ_ONLY, 
 							&(write_op->bulk_handle));
 		// TODO handle error
-
+                assert(ret == HG_SUCCESS);
 	}
 
 	write_op->ready = 1;
