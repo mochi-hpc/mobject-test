@@ -26,7 +26,10 @@ mobject_store_read_op_t create_read_op(void)
 void release_read_op(mobject_store_read_op_t read_op)
 {
 	if(read_op == MOBJECT_READ_OP_NULL) return;
-	
+
+	if(read_op->bulk_handle != HG_BULK_NULL)
+		margo_bulk_free(read_op->bulk_handle);
+
 	rd_action_base_t action, tmp;
 
 	DL_FOREACH_SAFE(read_op->actions, action, tmp) {
