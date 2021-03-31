@@ -26,6 +26,7 @@ int mobject_aio_write_op_operate(
     hg_return_t ret;
 
     write_op_in_t in;
+    in.client_addr = mph->client->client_addr;
     in.object_name = oid;
     in.pool_name   = pool_name;
     in.write_op    = write_op;
@@ -76,6 +77,7 @@ int mobject_aio_read_op_operate(
     hg_return_t ret;
 
     read_op_in_t in; 
+    in.client_addr = mph->client->client_addr;
     in.object_name = oid;
     in.pool_name   = pool_name;
     in.read_op     = read_op;
