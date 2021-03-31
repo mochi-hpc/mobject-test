@@ -165,6 +165,8 @@ int mobject_aio_wait(mobject_request_t req, int* ret)
             return r;
         } break;
     }
+
+    return(0);
 }
 
 int mobject_aio_test(mobject_request_t req, int* flag)

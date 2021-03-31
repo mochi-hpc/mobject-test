@@ -36,6 +36,9 @@ void prepare_read_op(margo_instance_id mid, mobject_store_read_op_t read_op)
 				(rd_action_read_t)action, pointers+i, lengths+i);
 			i += 1;
 			break;
+                default:
+                    /* nothing to do for other op types */
+                    break;
 		}	
 	}
 
@@ -45,7 +48,7 @@ void prepare_read_op(margo_instance_id mid, mobject_store_read_op_t read_op)
     						pointers, lengths, HG_BULK_WRITE_ONLY, 
 							&(read_op->bulk_handle));
 		// TODO handle error
-
+                assert(ret == HG_SUCCESS);
 	}
 
 	read_op->ready = 1;
