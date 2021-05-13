@@ -1,6 +1,6 @@
 /*
  * (C) 2018 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #include <map>
@@ -8,4 +8,4 @@
 
 #include "src/server/fake/fake-object.hpp"
 
-std::map< std::string, fake_object > fake_db;
+std::map<std::string, fake_object> fake_db;

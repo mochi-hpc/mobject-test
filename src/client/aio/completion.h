@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __MOBJECT_COMPLETION_H
@@ -20,12 +20,11 @@
  * in libmobject-store.h.
  */
 struct mobject_store_completion {
-	mobject_store_callback_t cb_complete;    // completion callback
-	mobject_store_callback_t cb_safe;        // safe callback
-	void*                    cb_arg;         // arguments for callbacks
-	mobject_request_t        request;        // margo request to wait on
-	int                      ret_value;      // return value of the operation
+    mobject_store_callback_t cb_complete; // completion callback
+    mobject_store_callback_t cb_safe;     // safe callback
+    void*                    cb_arg;      // arguments for callbacks
+    mobject_request_t        request;     // margo request to wait on
+    int                      ret_value;   // return value of the operation
 };
 
 #endif
-
