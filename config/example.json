@@ -1,0 +1,92 @@
+{
+    "ssg" : [
+        {
+            "name" : "mobject",
+            "bootstrap" : "init",
+            "group_file" : "mobject.ssg",
+            "swim" : { "disabled" : true }
+        }
+    ],
+    "libraries" : {
+        "sdskv"   : "libsdskv-bedrock.so",
+        "bake"    : "libbake-bedrock.so",
+        "mobject" : "libmobject-bedrock.so"
+    },
+    "abt_io" : [
+        {
+            "name" : "bake_abt_io",
+            "pool" : "__primary__"
+        }
+    ],
+    "providers" : [
+        {
+            "name" : "metadata",
+            "type" : "sdskv",
+            "provider_id" : 0,
+            "config" : {
+                "comparators" : [
+                    { "name" : "mobject_oid_map_compare",
+                      "library" : "libmobject-comparators.so" },
+                    { "name" : "mobject_name_map_compare",
+                      "library" : "libmobject-comparators.so" },
+                    { "name" : "mobject_seg_map_compare",
+                      "library" : "libmobject-comparators.so" },
+                    { "name" : "mobject_omap_map_compare",
+                      "library" : "libmobject-comparators.so" }
+                ],
+                "databases" : [
+                    {
+                        "name" : "mobject_oid_map",
+                        "type" : "map",
+                        "comparator" : "mobject_oid_map_compare"
+                    },
+                    {
+                        "name" : "mobject_name_map",
+                        "type" : "map",
+                        "comparator" : "mobject_name_map_compare"
+                    },
+                    {
+                        "name" : "mobject_seg_map",
+                        "type" : "map",
+                        "comparator" : "mobject_seg_map_compare"
+                    },
+                    {
+                        "name" : "mobject_omap_map",
+                        "type" : "map",
+                        "comparator" : "mobject_omap_map_compare"
+                    }
+                ]
+            }
+        },
+        {
+            "name" : "storage",
+            "type" : "bake",
+            "provider_id" : 0,
+            "config" : {
+                "pipeline_enable" : true,
+                "pipeline_npools" : 4,
+                "pipeline_nbuffers_per_pool" : 32,
+                "pipeline_first_buffer_size" : 65536,
+                "pipeline_multiplier" : 4,
+                "pmem_backend": {
+                    "targets": [
+                        "/dev/shm/mobject-target.dat"
+                    ]
+                }
+            },
+            "dependencies" : {
+                "abt_io" : "bake_abt_io"
+            }
+        },
+        {
+            "name" : "coordinator",
+            "type" : "mobject",
+            "provider_id" : 0,
+            "config" : {},
+            "dependencies" : {
+                "bake_provider_handle" : "bake:0@local",
+                "sdskv_provider_handle" : "sdskv:0@local"
+            }
+        }
+    ]
+}
