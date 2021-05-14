@@ -81,8 +81,8 @@ lib_libmobject_comparators_la_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
 if BUILD_BEDROCK
 lib_libmobject_bedrock_la_SOURCES = \
   src/bedrock/mobject-bedrock.c
-lib_libmobject_bedrock_la_CPPFLAGS = ${AM_CPPFLAGS}
-lib_libmobject_bedrock_la_CFLAGS = ${AM_CFLAGS} ${BEDROCK_CFLAGS}
+lib_libmobject_bedrock_la_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
+lib_libmobject_bedrock_la_CFLAGS = ${AM_CFLAGS} ${BEDROCK_CFLAGS} ${SERVER_CFLAGS}
 lib_libmobject_bedrock_la_LIBADD = lib/libmobject-server.la \
 				   lib/libmobject-client.la \
 				   ${BEDROCK_LIBS}
