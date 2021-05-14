@@ -41,6 +41,11 @@ struct mobject_provider {
     double   total_seg_wr_duration;
     double   last_wr_start;
     double   last_wr_end;
+    /* RPC ids */
+    hg_id_t write_op_id;
+    hg_id_t read_op_id;
+    hg_id_t clean_id;
+    hg_id_t stat_id;
 };
 
 #ifdef __cplusplus
