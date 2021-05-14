@@ -10,8 +10,7 @@ if [ -z "$MKTEMP" ] ; then
 fi
 source $srcdir/tests/mobject-test-util.sh
 
-TEST_DIR=`$MKTEMP -d /tmp/mobject-connect-test-XXXXXX`
-MOBJECT_CLUSTER_FILE=$TEST_DIR/cluster.gid
+MOBJECT_CLUSTER_FILE=mobject.ssg
 
 ##############
 
@@ -34,8 +33,5 @@ fi
 ##############
 
 wait
-
-# cleanup
-rm -rf $TEST_DIR
 
 exit 0
