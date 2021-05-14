@@ -7,10 +7,9 @@
 #define __SERVER_MOBJECT_CONTEXT_H
 
 #include <margo.h>
-//#include <sds-keyval.h>
 #include <bake-client.h>
 #include <sdskv-client.h>
-#include <ssg-mpi.h>
+#include <ssg.h>
 
 #ifdef __cplusplus
 extern "C" {

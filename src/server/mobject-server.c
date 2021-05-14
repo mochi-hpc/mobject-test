@@ -8,10 +8,9 @@
 
 #include <assert.h>
 #include <unistd.h>
-#include <mpi.h>
 #include <abt.h>
 #include <margo.h>
-#include <ssg-mpi.h>
+#include <ssg.h>
 
 #include "mobject-server.h"
 #include "src/server/mobject-server-context.h"
