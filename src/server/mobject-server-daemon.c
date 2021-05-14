@@ -218,7 +218,8 @@ int main(int argc, char* argv[])
     /* SDSKV provider initialization */
     uint8_t          sdskv_mplex_id = 2;
     sdskv_provider_t sdskv_prov;
-    ret = sdskv_provider_register(mid, sdskv_mplex_id, SDSKV_ABT_POOL_DEFAULT,
+    struct sdskv_provider_init_info sdskv_args = SDSKV_PROVIDER_INIT_INFO_INIT;
+    ret = sdskv_provider_register(mid, sdskv_mplex_id, &sdskv_args,
                                   &sdskv_prov);
     ASSERT(ret == 0, "sdskv_provider_register() failed (ret = %d)\n", ret);
 
