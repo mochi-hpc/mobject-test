@@ -56,31 +56,30 @@ static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
                                sdskv_database_id_t     oid_db_id,
                                const char*             object_name);
 
-static void insert_region_log_entry(struct mobject_server_context* srv_ctx,
-                                    oid_t                          oid,
-                                    uint64_t                       offset,
-                                    uint64_t                       len,
-                                    bake_region_id_t*              region,
-                                    time_t                         ts = 0);
+static void insert_region_log_entry(struct mobject_provider* provider,
+                                    oid_t                    oid,
+                                    uint64_t                 offset,
+                                    uint64_t                 len,
+                                    bake_region_id_t*        region,
+                                    time_t                   ts = 0);
 
-static void
-insert_small_region_log_entry(struct mobject_server_context* srv_ctx,
-                              oid_t                          oid,
-                              uint64_t                       offset,
-                              uint64_t                       len,
-                              const char*                    data,
-                              time_t                         ts = 0);
+static void insert_small_region_log_entry(struct mobject_provider* provider,
+                                          oid_t                    oid,
+                                          uint64_t                 offset,
+                                          uint64_t                 len,
+                                          const char*              data,
+                                          time_t                   ts = 0);
 
-static void insert_zero_log_entry(struct mobject_server_context* srv_ctx,
-                                  oid_t                          oid,
-                                  uint64_t                       offset,
-                                  uint64_t                       len,
-                                  time_t                         ts = 0);
+static void insert_zero_log_entry(struct mobject_provider* provider,
+                                  oid_t                    oid,
+                                  uint64_t                 offset,
+                                  uint64_t                 len,
+                                  time_t                   ts = 0);
 
-static void insert_punch_log_entry(struct mobject_server_context* srv_ctx,
-                                   oid_t                          oid,
-                                   uint64_t                       offset,
-                                   time_t                         ts = 0);
+static void insert_punch_log_entry(struct mobject_provider* provider,
+                                   oid_t                    oid,
+                                   uint64_t                 offset,
+                                   time_t                   ts = 0);
 
 uint64_t mobject_compute_object_size(sdskv_provider_handle_t ph,
                                      sdskv_database_id_t     seg_db_id,
@@ -111,9 +110,9 @@ extern "C" void core_write_op(mobject_store_write_op_t write_op,
 void write_op_exec_begin(void* u)
 {
     auto                    vargs      = static_cast<server_visitor_args_t>(u);
-    sdskv_provider_handle_t sdskv_ph   = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->srv_ctx->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->srv_ctx->oid_db_id;
+    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
+    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
     oid_t oid  = get_or_create_oid(sdskv_ph, name_db_id, oid_db_id,
                                   vargs->object_name);
     vargs->oid = oid;
@@ -146,25 +145,25 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
         return;
     }
 
-    struct mobject_server_context* srv_ctx = vargs->srv_ctx;
-    bake_provider_handle_t         bake_ph = srv_ctx->bake_ph;
-    bake_target_id_t               bti     = srv_ctx->bake_tid;
-    bake_region_id_t               rid;
-    hg_bulk_t                      remote_bulk     = vargs->bulk_handle;
-    const char*                    remote_addr_str = vargs->client_addr_str;
-    hg_addr_t                      remote_addr     = vargs->client_addr;
-    double                         wr_start, wr_end;
+    struct mobject_provider* provider = vargs->provider;
+    bake_provider_handle_t   bake_ph  = provider->bake_ph;
+    bake_target_id_t         bti      = provider->bake_tid;
+    bake_region_id_t         rid;
+    hg_bulk_t                remote_bulk     = vargs->bulk_handle;
+    const char*              remote_addr_str = vargs->client_addr_str;
+    hg_addr_t                remote_addr     = vargs->client_addr;
+    double                   wr_start, wr_end;
 
     int ret;
 
-    ABT_mutex_lock(srv_ctx->stats_mutex);
+    ABT_mutex_lock(provider->stats_mutex);
     wr_start = ABT_get_wtime();
-    if ((srv_ctx->last_wr_start > 0)
-        && (srv_ctx->last_wr_start >= srv_ctx->last_wr_end)) {
-        srv_ctx->total_seg_wr_duration += (wr_start - srv_ctx->last_wr_start);
+    if ((provider->last_wr_start > 0)
+        && (provider->last_wr_start >= provider->last_wr_end)) {
+        provider->total_seg_wr_duration += (wr_start - provider->last_wr_start);
     }
-    srv_ctx->last_wr_start = wr_start;
-    ABT_mutex_unlock(srv_ctx->stats_mutex);
+    provider->last_wr_start = wr_start;
+    ABT_mutex_unlock(provider->stats_mutex);
 
     if (len > SMALL_REGION_THRESHOLD) {
         ret = bake_create(bake_ph, bti, len, &rid);
@@ -178,9 +177,9 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
         ret = bake_persist(bake_ph, bti, rid, 0, len);
         if (ret != 0) { ERROR bake_perror("bake_persist", ret); }
 
-        insert_region_log_entry(srv_ctx, oid, offset, len, &rid);
+        insert_region_log_entry(provider, oid, offset, len, &rid);
     } else {
-        margo_instance_id mid = vargs->srv_ctx->mid;
+        margo_instance_id mid = vargs->provider->mid;
         char              data[SMALL_REGION_THRESHOLD];
         void*             buf_ptrs[1]  = {(void*)(&data[0])};
         hg_size_t         buf_sizes[1] = {len};
@@ -200,20 +199,20 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
             ERROR fprintf(stderr, "margo_bulk_free returned %d\n", ret);
         }
 
-        insert_small_region_log_entry(srv_ctx, oid, offset, len, data);
+        insert_small_region_log_entry(provider, oid, offset, len, data);
     }
 
-    ABT_mutex_lock(srv_ctx->stats_mutex);
+    ABT_mutex_lock(provider->stats_mutex);
     wr_end = ABT_get_wtime();
-    srv_ctx->segs++;
-    srv_ctx->total_seg_size += len;
-    if (srv_ctx->last_wr_start > srv_ctx->last_wr_end) {
-        srv_ctx->total_seg_wr_duration += (wr_end - srv_ctx->last_wr_start);
+    provider->segs++;
+    provider->total_seg_size += len;
+    if (provider->last_wr_start > provider->last_wr_end) {
+        provider->total_seg_wr_duration += (wr_end - provider->last_wr_start);
     } else {
-        srv_ctx->total_seg_wr_duration += (wr_end - srv_ctx->last_wr_end);
+        provider->total_seg_wr_duration += (wr_end - provider->last_wr_end);
     }
-    srv_ctx->last_wr_end = wr_end;
-    ABT_mutex_unlock(srv_ctx->stats_mutex);
+    provider->last_wr_end = wr_end;
+    ABT_mutex_unlock(provider->stats_mutex);
     LEAVING;
 }
 
@@ -245,8 +244,8 @@ void write_op_exec_writesame(
 
     if (data_len > SMALL_REGION_THRESHOLD) {
 
-        bake_provider_handle_t bph = vargs->srv_ctx->bake_ph;
-        bake_target_id_t       bti = vargs->srv_ctx->bake_tid;
+        bake_provider_handle_t bph = vargs->provider->bake_ph;
+        bake_target_id_t       bti = vargs->provider->bake_tid;
         bake_region_id_t       rid;
 
         ret = bake_create(bph, bti, data_len, &rid);
@@ -275,14 +274,14 @@ void write_op_exec_writesame(
         for (i = 0; i < write_len; i += data_len) {
             // TODO normally we should have the same timestamps but right now it
             // bugs...
-            insert_region_log_entry(vargs->srv_ctx, oid, offset + i,
+            insert_region_log_entry(vargs->provider, oid, offset + i,
                                     std::min(data_len, write_len - i),
                                     &rid); //, ts);
         }
 
     } else {
 
-        margo_instance_id mid = vargs->srv_ctx->mid;
+        margo_instance_id mid = vargs->provider->mid;
         char              data[SMALL_REGION_THRESHOLD];
         void*             buf_ptrs[1]  = {(void*)(&data[0])};
         hg_size_t         buf_sizes[1] = {data_len};
@@ -304,7 +303,7 @@ void write_op_exec_writesame(
 
         size_t i;
         for (i = 0; i < write_len; i += data_len) {
-            insert_small_region_log_entry(vargs->srv_ctx, oid, offset + i,
+            insert_small_region_log_entry(vargs->provider, oid, offset + i,
                                           std::min(data_len, write_len - i),
                                           data);
         }
@@ -331,12 +330,12 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
     // find out the current length of the object
     time_t   ts     = time(NULL);
     uint64_t offset = mobject_compute_object_size(
-        vargs->srv_ctx->sdskv_ph, vargs->srv_ctx->segment_db_id, oid, ts);
+        vargs->provider->sdskv_ph, vargs->provider->segment_db_id, oid, ts);
 
     if (len > SMALL_REGION_THRESHOLD) {
 
-        bake_provider_handle_t bph = vargs->srv_ctx->bake_ph;
-        bake_target_id_t       bti = vargs->srv_ctx->bake_tid;
+        bake_provider_handle_t bph = vargs->provider->bake_ph;
+        bake_target_id_t       bti = vargs->provider->bake_tid;
         bake_region_id_t       rid;
 
         ret = bake_create(bph, bti, len, &rid);
@@ -347,11 +346,11 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
         ret = bake_persist(bph, bti, rid, 0, len);
         if (ret != 0) bake_perror("bake_persist", ret);
 
-        insert_region_log_entry(vargs->srv_ctx, oid, offset, len, &rid, ts);
+        insert_region_log_entry(vargs->provider, oid, offset, len, &rid, ts);
 
     } else {
 
-        margo_instance_id mid = vargs->srv_ctx->mid;
+        margo_instance_id mid = vargs->provider->mid;
         char              data[SMALL_REGION_THRESHOLD];
         void*             buf_ptrs[1]  = {(void*)(&data[0])};
         hg_size_t         buf_sizes[1] = {len};
@@ -371,7 +370,7 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
             ERROR fprintf(stderr, "margo_bulk_free returned %d\n", ret);
         }
 
-        insert_small_region_log_entry(vargs->srv_ctx, oid, offset, len, data);
+        insert_small_region_log_entry(vargs->provider, oid, offset, len, data);
     }
     LEAVING;
 }
@@ -382,12 +381,12 @@ void write_op_exec_remove(void* u)
     auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
     oid_t                   oid         = vargs->oid;
-    bake_provider_handle_t  bake_ph     = vargs->srv_ctx->bake_ph;
-    bake_target_id_t        bti         = vargs->srv_ctx->bake_tid;
-    sdskv_provider_handle_t sdskv_ph    = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     name_db_id  = vargs->srv_ctx->name_db_id;
-    sdskv_database_id_t     oid_db_id   = vargs->srv_ctx->oid_db_id;
-    sdskv_database_id_t     seg_db_id   = vargs->srv_ctx->segment_db_id;
+    bake_provider_handle_t  bake_ph     = vargs->provider->bake_ph;
+    bake_target_id_t        bti         = vargs->provider->bake_tid;
+    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     name_db_id  = vargs->provider->name_db_id;
+    sdskv_database_id_t     oid_db_id   = vargs->provider->oid_db_id;
+    sdskv_database_id_t     seg_db_id   = vargs->provider->segment_db_id;
     int                     ret;
 
     /* remove name->OID entry to make object no longer visible to clients */
@@ -503,7 +502,7 @@ void write_op_exec_truncate(void* u, uint64_t offset)
         LEAVING;
     }
 
-    insert_punch_log_entry(vargs->srv_ctx, oid, offset);
+    insert_punch_log_entry(vargs->provider, oid, offset);
     LEAVING;
 }
 
@@ -518,7 +517,7 @@ void write_op_exec_zero(void* u, uint64_t offset, uint64_t len)
         return;
     }
 
-    insert_zero_log_entry(vargs->srv_ctx, oid, offset, len);
+    insert_zero_log_entry(vargs->provider, oid, offset, len);
     LEAVING;
 }
 
@@ -531,10 +530,10 @@ void write_op_exec_omap_set(void*              u,
     ENTERING;
     int                     ret;
     auto                    vargs      = static_cast<server_visitor_args_t>(u);
-    sdskv_provider_handle_t sdskv_ph   = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->srv_ctx->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->srv_ctx->oid_db_id;
-    sdskv_database_id_t     omap_db_id = vargs->srv_ctx->omap_db_id;
+    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
+    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
+    sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
     oid_t                   oid        = vargs->oid;
     if (oid == 0) {
         ERROR fprintf(stderr, "oid == 0\n");
@@ -576,10 +575,10 @@ void write_op_exec_omap_rm_keys(void*              u,
     ENTERING;
     int                     ret;
     auto                    vargs      = static_cast<server_visitor_args_t>(u);
-    sdskv_provider_handle_t sdskv_ph   = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->srv_ctx->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->srv_ctx->oid_db_id;
-    sdskv_database_id_t     omap_db_id = vargs->srv_ctx->omap_db_id;
+    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
+    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
+    sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
     oid_t                   oid        = vargs->oid;
     if (oid == 0) {
         ERROR fprintf(stderr, "oid == 0\n");
@@ -673,16 +672,16 @@ static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
     return oid;
 }
 
-static void insert_region_log_entry(struct mobject_server_context* srv_ctx,
-                                    oid_t                          oid,
-                                    uint64_t                       offset,
-                                    uint64_t                       len,
-                                    bake_region_id_t*              region,
-                                    time_t                         ts)
+static void insert_region_log_entry(struct mobject_provider* provider,
+                                    oid_t                    oid,
+                                    uint64_t                 offset,
+                                    uint64_t                 len,
+                                    bake_region_id_t*        region,
+                                    time_t                   ts)
 {
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
     segment_key_t           seg;
 
     seg.oid         = oid;
@@ -690,9 +689,9 @@ static void insert_region_log_entry(struct mobject_server_context* srv_ctx,
     seg.start_index = offset;
     seg.end_index   = offset + len;
     seg.type        = seg_type_t::BAKE_REGION;
-    ABT_mutex_lock(srv_ctx->mutex);
-    seg.seq_id = srv_ctx->seq_id++;
-    ABT_mutex_unlock(srv_ctx->mutex);
+    ABT_mutex_lock(provider->mutex);
+    seg.seq_id = provider->seq_id++;
+    ABT_mutex_unlock(provider->mutex);
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)region, sizeof(*region));
     if (ret != SDSKV_SUCCESS) {
@@ -701,17 +700,16 @@ static void insert_region_log_entry(struct mobject_server_context* srv_ctx,
     LEAVING;
 }
 
-static void
-insert_small_region_log_entry(struct mobject_server_context* srv_ctx,
-                              oid_t                          oid,
-                              uint64_t                       offset,
-                              uint64_t                       len,
-                              const char*                    data,
-                              time_t                         ts)
+static void insert_small_region_log_entry(struct mobject_provider* provider,
+                                          oid_t                    oid,
+                                          uint64_t                 offset,
+                                          uint64_t                 len,
+                                          const char*              data,
+                                          time_t                   ts)
 {
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
     segment_key_t           seg;
 
     seg.oid         = oid;
@@ -719,9 +717,9 @@ insert_small_region_log_entry(struct mobject_server_context* srv_ctx,
     seg.start_index = offset;
     seg.end_index   = offset + len;
     seg.type        = seg_type_t::SMALL_REGION;
-    ABT_mutex_lock(srv_ctx->mutex);
-    seg.seq_id = srv_ctx->seq_id++;
-    ABT_mutex_unlock(srv_ctx->mutex);
+    ABT_mutex_lock(provider->mutex);
+    seg.seq_id = provider->seq_id++;
+    ABT_mutex_unlock(provider->mutex);
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)data, len);
     if (ret != SDSKV_SUCCESS) {
@@ -730,15 +728,15 @@ insert_small_region_log_entry(struct mobject_server_context* srv_ctx,
     LEAVING;
 }
 
-static void insert_zero_log_entry(struct mobject_server_context* srv_ctx,
-                                  oid_t                          oid,
-                                  uint64_t                       offset,
-                                  uint64_t                       len,
-                                  time_t                         ts)
+static void insert_zero_log_entry(struct mobject_provider* provider,
+                                  oid_t                    oid,
+                                  uint64_t                 offset,
+                                  uint64_t                 len,
+                                  time_t                   ts)
 {
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
     segment_key_t           seg;
 
     seg.oid         = oid;
@@ -746,9 +744,9 @@ static void insert_zero_log_entry(struct mobject_server_context* srv_ctx,
     seg.start_index = offset;
     seg.end_index   = offset + len;
     seg.type        = seg_type_t::ZERO;
-    ABT_mutex_lock(srv_ctx->mutex);
-    seg.seq_id = srv_ctx->seq_id++;
-    ABT_mutex_unlock(srv_ctx->mutex);
+    ABT_mutex_lock(provider->mutex);
+    seg.seq_id = provider->seq_id++;
+    ABT_mutex_unlock(provider->mutex);
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)nullptr, 0);
     if (ret != SDSKV_SUCCESS) {
@@ -757,14 +755,14 @@ static void insert_zero_log_entry(struct mobject_server_context* srv_ctx,
     LEAVING;
 }
 
-static void insert_punch_log_entry(struct mobject_server_context* srv_ctx,
-                                   oid_t                          oid,
-                                   uint64_t                       offset,
-                                   time_t                         ts)
+static void insert_punch_log_entry(struct mobject_provider* provider,
+                                   oid_t                    oid,
+                                   uint64_t                 offset,
+                                   time_t                   ts)
 {
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
     segment_key_t           seg;
 
     seg.oid         = oid;
@@ -772,9 +770,9 @@ static void insert_punch_log_entry(struct mobject_server_context* srv_ctx,
     seg.start_index = offset;
     seg.end_index   = std::numeric_limits<uint64_t>::max();
     seg.type        = seg_type_t::TOMBSTONE;
-    ABT_mutex_lock(srv_ctx->mutex);
-    seg.seq_id = srv_ctx->seq_id++;
-    ABT_mutex_unlock(srv_ctx->mutex);
+    ABT_mutex_lock(provider->mutex);
+    seg.seq_id = provider->seq_id++;
+    ABT_mutex_unlock(provider->mutex);
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)nullptr, 0);
     if (ret != SDSKV_SUCCESS) {

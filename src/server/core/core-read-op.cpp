@@ -91,8 +91,8 @@ void read_op_exec_begin(void* u)
     const char* object_name = vargs->object_name;
     oid_t       oid         = vargs->oid;
     if (oid == 0) {
-        sdskv_provider_handle_t sdskv_ph   = vargs->srv_ctx->sdskv_ph;
-        sdskv_database_id_t     name_db_id = vargs->srv_ctx->name_db_id;
+        sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
+        sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
         oid        = get_oid_from_name(sdskv_ph, name_db_id, object_name);
         vargs->oid = oid;
     }
@@ -103,8 +103,8 @@ void read_op_exec_stat(void* u, uint64_t* psize, time_t* pmtime, int* prval)
 {
     ENTERING;
     auto                    vargs     = static_cast<server_visitor_args_t>(u);
-    sdskv_provider_handle_t sdskv_ph  = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = vargs->srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph  = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id = vargs->provider->segment_db_id;
     // find oid
     oid_t oid = vargs->oid;
     if (oid == 0) {
@@ -128,14 +128,14 @@ void read_op_exec_read(void*    u,
 {
     ENTERING;
     auto                    vargs = static_cast<server_visitor_args_t>(u);
-    bake_provider_handle_t  bph   = vargs->srv_ctx->bake_ph;
-    bake_target_id_t        bti   = vargs->srv_ctx->bake_tid;
+    bake_provider_handle_t  bph   = vargs->provider->bake_ph;
+    bake_target_id_t        bti   = vargs->provider->bake_tid;
     bake_region_id_t        rid;
     hg_bulk_t               remote_bulk     = vargs->bulk_handle;
     const char*             remote_addr_str = vargs->client_addr_str;
     hg_addr_t               remote_addr     = vargs->client_addr;
-    sdskv_provider_handle_t sdskv_ph        = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     seg_db_id       = vargs->srv_ctx->segment_db_id;
+    sdskv_provider_handle_t sdskv_ph        = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     seg_db_id       = vargs->provider->segment_db_id;
     int                     ret;
 
     uint64_t client_start_index = offset;
@@ -245,7 +245,7 @@ void read_op_exec_read(void*    u,
             case seg_type_t::SMALL_REGION: {
                 auto ranges      = coverage.set(seg.start_index, seg.end_index);
                 const char* base = static_cast<const char*>((void*)(&region));
-                margo_instance_id mid = vargs->srv_ctx->mid;
+                margo_instance_id mid = vargs->provider->mid;
                 for (auto r : ranges) {
                     uint64_t segment_size  = r.end - r.start;
                     uint64_t region_offset = r.start - seg.start_index;
@@ -307,8 +307,8 @@ void read_op_exec_omap_get_keys(void*                      u,
     ENTERING;
     auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->srv_ctx->omap_db_id;
+    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
     int                     ret;
     *prval = 0;
 
@@ -376,8 +376,8 @@ void read_op_exec_omap_get_vals(void*                      u,
     ENTERING;
     auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->srv_ctx->omap_db_id;
+    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
     int                     ret;
     *prval = 0;
 
@@ -470,8 +470,8 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
     ENTERING;
     auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->srv_ctx->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->srv_ctx->omap_db_id;
+    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
+    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
     int                     ret;
     *prval = 0;
 

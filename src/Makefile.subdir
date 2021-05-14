@@ -23,6 +23,7 @@ noinst_HEADERS += \
   src/rpc-types/write-op.h \
   src/server/printer/print-read-op.h\
   src/server/printer/print-write-op.h \
+  src/server/mobject-provider.h \
   src/util/buffer-union.h \
   src/util/log.h \
   src/util/utlist.h

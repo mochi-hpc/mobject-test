@@ -78,7 +78,7 @@ void read_op_exec_read(void*    u,
         *prval = -1;
         return;
     }
-    margo_instance_id mid = vargs->srv_ctx->mid;
+    margo_instance_id mid = vargs->provider->mid;
     fake_db[name].read(mid, vargs->client_addr, vargs->bulk_handle,
                        buf.as_offset, offset, len, bytes_read);
     *prval = 0;

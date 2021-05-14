@@ -77,7 +77,7 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
         std::cerr << "[FAKE-BACKEND-WARNING] (write) Object " << name
                   << " does not exist, it will be created" << std::endl;
     }
-    margo_instance_id mid = vargs->srv_ctx->mid;
+    margo_instance_id mid = vargs->provider->mid;
     fake_db[name].write(mid, vargs->client_addr, vargs->bulk_handle,
                         buf.as_offset, offset, len);
 }
@@ -90,7 +90,7 @@ void write_op_exec_write_full(void* u, buffer_u buf, size_t len)
         std::cerr << "[FAKE-BACKEND-WARNING] (write_full) Object " << name
                   << " does not exist, it will be created" << std::endl;
     }
-    margo_instance_id mid = vargs->srv_ctx->mid;
+    margo_instance_id mid = vargs->provider->mid;
     fake_db[name].write_full(mid, vargs->client_addr, vargs->bulk_handle,
                              buf.as_offset, len);
 }
@@ -104,7 +104,7 @@ void write_op_exec_writesame(
         std::cerr << "[FAKE-BACKEND-WARNING] (writesame) Object " << name
                   << " does not exist, it will be created" << std::endl;
     }
-    margo_instance_id mid = vargs->srv_ctx->mid;
+    margo_instance_id mid = vargs->provider->mid;
     fake_db[name].writesame(mid, vargs->client_addr, vargs->bulk_handle,
                             buf.as_offset, offset, data_len, write_len);
 }
@@ -117,7 +117,7 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
         std::cerr << "[FAKE-BACKEND-WARNING] (append) Object " << name
                   << " does not exist, it will be created" << std::endl;
     }
-    margo_instance_id mid = vargs->srv_ctx->mid;
+    margo_instance_id mid = vargs->provider->mid;
     fake_db[name].append(mid, vargs->client_addr, vargs->bulk_handle,
                          buf.as_offset, len);
 }

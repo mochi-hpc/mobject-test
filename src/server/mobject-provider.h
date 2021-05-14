@@ -3,8 +3,8 @@
  *
  * See COPYRIGHT in top-level directory.
  */
-#ifndef __SERVER_MOBJECT_CONTEXT_H
-#define __SERVER_MOBJECT_CONTEXT_H
+#ifndef __SERVER_MOBJECT_PROVIDER_H
+#define __SERVER_MOBJECT_PROVIDER_H
 
 #include <margo.h>
 #include <bake-client.h>
@@ -17,7 +17,7 @@ extern "C" {
 
 #define MOBJECT_SEQ_ID_MAX UINT32_MAX
 
-struct mobject_server_context {
+struct mobject_provider {
     /* margo/ABT state */
     margo_instance_id mid;
     uint16_t          provider_id;

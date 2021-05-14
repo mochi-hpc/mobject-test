@@ -13,7 +13,7 @@
 #include <ssg.h>
 
 #include "mobject-server.h"
-#include "src/server/mobject-server-context.h"
+#include "src/server/mobject-provider.h"
 #include "src/rpc-types/write-op.h"
 #include "src/rpc-types/read-op.h"
 //#include "src/server/print-write-op.h"
@@ -45,7 +45,7 @@ int mobject_provider_register(margo_instance_id       mid,
                               const char*             cluster_file,
                               mobject_provider_t*     provider)
 {
-    mobject_provider_t srv_ctx;
+    mobject_provider_t tmp_provider;
     int                my_rank;
     int                ret;
 
@@ -64,22 +64,23 @@ int mobject_provider_register(margo_instance_id       mid,
         }
     }
 
-    srv_ctx = calloc(1, sizeof(*srv_ctx));
-    if (!srv_ctx) return -1;
-    srv_ctx->mid         = mid;
-    srv_ctx->provider_id = provider_id;
-    srv_ctx->pool        = pool;
-    srv_ctx->ref_count   = 1;
-    ABT_mutex_create(&srv_ctx->mutex);
-    ABT_mutex_create(&srv_ctx->stats_mutex);
+    tmp_provider = calloc(1, sizeof(*tmp_provider));
+    if (!tmp_provider) return -1;
+    tmp_provider->mid         = mid;
+    tmp_provider->provider_id = provider_id;
+    tmp_provider->pool        = pool;
+    tmp_provider->ref_count   = 1;
+    ABT_mutex_create(&tmp_provider->mutex);
+    ABT_mutex_create(&tmp_provider->stats_mutex);
 
-    srv_ctx->gid = gid;
-    my_rank      = ssg_get_group_self_rank(srv_ctx->gid);
+    tmp_provider->gid = gid;
+    my_rank           = ssg_get_group_self_rank(tmp_provider->gid);
 
     /* one proccess writes cluster connect info to file for clients to find
      * later */
     if (my_rank == 0) {
-        ret = ssg_group_id_store(cluster_file, srv_ctx->gid, SSG_ALL_MEMBERS);
+        ret = ssg_group_id_store(cluster_file, tmp_provider->gid,
+                                 SSG_ALL_MEMBERS);
         if (ret != 0) {
             fprintf(stderr,
                     "Error: unable to store mobject cluster info to file %s\n",
@@ -88,55 +89,55 @@ int mobject_provider_register(margo_instance_id       mid,
              * currently have an easy way to propagate this error to the entire
              * cluster group
              */
-            free(srv_ctx);
+            free(tmp_provider);
             return -1;
         }
     }
 
     /* Bake settings initialization */
     bake_provider_handle_ref_incr(bake_ph);
-    srv_ctx->bake_ph = bake_ph;
+    tmp_provider->bake_ph = bake_ph;
     uint64_t num_targets;
-    ret = bake_probe(bake_ph, 1, &(srv_ctx->bake_tid), &num_targets);
+    ret = bake_probe(bake_ph, 1, &(tmp_provider->bake_tid), &num_targets);
     if (ret != 0) {
         fprintf(stderr, "Error: unable to probe bake server for targets\n");
         return -1;
     }
     if (num_targets < 1) {
         fprintf(stderr, "Error: unable to find a target on bake provider\n");
-        free(srv_ctx);
+        free(tmp_provider);
         return -1;
     }
     /* SDSKV settings initialization */
     sdskv_provider_handle_ref_incr(sdskv_ph);
-    srv_ctx->sdskv_ph = sdskv_ph;
-    ret               = sdskv_open(sdskv_ph, "oid_map", &(srv_ctx->oid_db_id));
+    tmp_provider->sdskv_ph = sdskv_ph;
+    ret = sdskv_open(sdskv_ph, "oid_map", &(tmp_provider->oid_db_id));
     if (ret != SDSKV_SUCCESS) {
         fprintf(stderr, "Error: unable to open oid_map from SDSKV provider\n");
-        bake_provider_handle_release(srv_ctx->bake_ph);
-        sdskv_provider_handle_release(srv_ctx->sdskv_ph);
-        free(srv_ctx);
+        bake_provider_handle_release(tmp_provider->bake_ph);
+        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        free(tmp_provider);
     }
-    ret = sdskv_open(sdskv_ph, "name_map", &(srv_ctx->name_db_id));
+    ret = sdskv_open(sdskv_ph, "name_map", &(tmp_provider->name_db_id));
     if (ret != SDSKV_SUCCESS) {
         fprintf(stderr, "Error: unable to open name_map from SDSKV provider\n");
-        bake_provider_handle_release(srv_ctx->bake_ph);
-        sdskv_provider_handle_release(srv_ctx->sdskv_ph);
-        free(srv_ctx);
+        bake_provider_handle_release(tmp_provider->bake_ph);
+        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        free(tmp_provider);
     }
-    ret = sdskv_open(sdskv_ph, "seg_map", &(srv_ctx->segment_db_id));
+    ret = sdskv_open(sdskv_ph, "seg_map", &(tmp_provider->segment_db_id));
     if (ret != SDSKV_SUCCESS) {
         fprintf(stderr, "Error: unable to open seg_map from SDSKV provider\n");
-        bake_provider_handle_release(srv_ctx->bake_ph);
-        sdskv_provider_handle_release(srv_ctx->sdskv_ph);
-        free(srv_ctx);
+        bake_provider_handle_release(tmp_provider->bake_ph);
+        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        free(tmp_provider);
     }
-    ret = sdskv_open(sdskv_ph, "omap_map", &(srv_ctx->omap_db_id));
+    ret = sdskv_open(sdskv_ph, "omap_map", &(tmp_provider->omap_db_id));
     if (ret != SDSKV_SUCCESS) {
         fprintf(stderr, "Error: unable to open omap_map from SDSKV provider\n");
-        bake_provider_handle_release(srv_ctx->bake_ph);
-        sdskv_provider_handle_release(srv_ctx->sdskv_ph);
-        free(srv_ctx);
+        bake_provider_handle_release(tmp_provider->bake_ph);
+        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        free(tmp_provider);
     }
 
     hg_id_t rpc_id;
@@ -145,27 +146,27 @@ int mobject_provider_register(margo_instance_id       mid,
     rpc_id = MARGO_REGISTER_PROVIDER(mid, "mobject_write_op", write_op_in_t,
                                      write_op_out_t, mobject_write_op_ult,
                                      provider_id, pool);
-    margo_register_data(mid, rpc_id, srv_ctx, NULL);
+    margo_register_data(mid, rpc_id, tmp_provider, NULL);
 
     rpc_id = MARGO_REGISTER_PROVIDER(mid, "mobject_read_op", read_op_in_t,
                                      read_op_out_t, mobject_read_op_ult,
                                      provider_id, pool);
-    margo_register_data(mid, rpc_id, srv_ctx, NULL);
+    margo_register_data(mid, rpc_id, tmp_provider, NULL);
 
     /* server ctl RPCs */
     rpc_id
         = MARGO_REGISTER_PROVIDER(mid, "mobject_server_clean", void, void,
                                   mobject_server_clean_ult, provider_id, pool);
-    margo_register_data(mid, rpc_id, srv_ctx, NULL);
+    margo_register_data(mid, rpc_id, tmp_provider, NULL);
 
     rpc_id
         = MARGO_REGISTER_PROVIDER(mid, "mobject_server_stat", void, void,
                                   mobject_server_stat_ult, provider_id, pool);
-    margo_register_data(mid, rpc_id, srv_ctx, NULL);
+    margo_register_data(mid, rpc_id, tmp_provider, NULL);
 
-    margo_push_finalize_callback(mid, mobject_finalize_cb, (void*)srv_ctx);
+    margo_push_finalize_callback(mid, mobject_finalize_cb, (void*)tmp_provider);
 
-    *provider = srv_ctx;
+    *provider = tmp_provider;
 
     return 0;
 }
@@ -188,8 +189,8 @@ static hg_return_t mobject_write_op_ult(hg_handle_t h)
     vargs.object_name = in.object_name;
     vargs.oid         = 0;
     vargs.pool_name   = in.pool_name;
-    vargs.srv_ctx     = margo_registered_data(mid, info->id);
-    if (vargs.srv_ctx == NULL) return HG_OTHER_ERROR;
+    vargs.provider    = margo_registered_data(mid, info->id);
+    if (vargs.provider == NULL) return HG_OTHER_ERROR;
     vargs.client_addr_str = in.client_addr;
     vargs.client_addr     = info->addr;
     vargs.bulk_handle     = in.write_op->bulk_handle;
@@ -241,8 +242,8 @@ static hg_return_t mobject_read_op_ult(hg_handle_t h)
     vargs.object_name = in.object_name;
     vargs.oid         = 0;
     vargs.pool_name   = in.pool_name;
-    vargs.srv_ctx     = margo_registered_data(mid, info->id);
-    if (vargs.srv_ctx == NULL) return HG_OTHER_ERROR;
+    vargs.provider    = margo_registered_data(mid, info->id);
+    if (vargs.provider == NULL) return HG_OTHER_ERROR;
     vargs.client_addr_str = in.client_addr;
     vargs.client_addr     = info->addr;
     vargs.bulk_handle     = in.read_op->bulk_handle;
@@ -300,23 +301,22 @@ static hg_return_t mobject_server_stat_ult(hg_handle_t h)
     const struct hg_info* info = margo_get_info(h);
     margo_instance_id     mid  = margo_hg_handle_get_instance(h);
 
-    struct mobject_server_context* srv_ctx
-        = margo_registered_data(mid, info->id);
-    my_id = ssg_get_self_id(mid);
+    struct mobject_provider* provider = margo_registered_data(mid, info->id);
+    my_id                             = ssg_get_self_id(mid);
     gethostname(my_hostname, sizeof(my_hostname));
 
-    ABT_mutex_lock(srv_ctx->stats_mutex);
+    ABT_mutex_lock(provider->stats_mutex);
     fprintf(stderr,
             "Server %lu (host: %s):\n"
             "\tSegments allocated: %u\n"
             "\tTotal segment size: %lu bytes\n"
             "\tTotal segment write time: %.4lf s\n"
             "\tTotal segment write b/w: %.4lf MiB/s\n",
-            my_id, my_hostname, srv_ctx->segs, srv_ctx->total_seg_size,
-            srv_ctx->total_seg_wr_duration,
-            (srv_ctx->total_seg_size / (1024.0 * 1024.0)
-             / srv_ctx->total_seg_wr_duration));
-    ABT_mutex_unlock(srv_ctx->stats_mutex);
+            my_id, my_hostname, provider->segs, provider->total_seg_size,
+            provider->total_seg_wr_duration,
+            (provider->total_seg_size / (1024.0 * 1024.0)
+             / provider->total_seg_wr_duration));
+    ABT_mutex_unlock(provider->stats_mutex);
 
     ret = margo_respond(h, NULL);
     assert(ret == HG_SUCCESS);
@@ -330,12 +330,12 @@ DEFINE_MARGO_RPC_HANDLER(mobject_server_stat_ult)
 
 static void mobject_finalize_cb(void* data)
 {
-    mobject_provider_t srv_ctx = (mobject_provider_t)data;
+    mobject_provider_t provider = (mobject_provider_t)data;
 
-    sdskv_provider_handle_release(srv_ctx->sdskv_ph);
-    bake_provider_handle_release(srv_ctx->bake_ph);
-    ABT_mutex_free(&srv_ctx->mutex);
-    ABT_mutex_free(&srv_ctx->stats_mutex);
+    sdskv_provider_handle_release(provider->sdskv_ph);
+    bake_provider_handle_release(provider->bake_ph);
+    ABT_mutex_free(&provider->mutex);
+    ABT_mutex_free(&provider->stats_mutex);
 
-    free(srv_ctx);
+    free(provider);
 }
