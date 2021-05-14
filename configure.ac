@@ -56,12 +56,6 @@ LIBS="$MARGO_LIBS $LIBS"
 CPPFLAGS="$MARGO_CFLAGS $CPPFLAGS"
 CFLAGS="$MARGO_CFLAGS $CFLAGS"
 
-#PKG_CHECK_MODULES([ARGOBOTS],[argobots],[],
-#	AC_MSG_ERROR([Could not find working argobots installation!]) )
-#LIBS="$ARGOBOTS_LIBS $LIBS"
-#CPPFLAGS="$ARGOBOTS_CFLAGS $CPPFLAGS"
-#CFLAGS="$ARGOBOTS_CFLAGS $CFLAGS"
-
 PKG_CHECK_MODULES([SDSKEYVALSERVER],[sdskv-server],[],
 	AC_MSG_ERROR([Could not find working sds-keyval server installation!]) )
 SERVER_LIBS="$SDSKEYVALSERVER_LIBS $SERVER_LIBS"
@@ -115,6 +109,29 @@ fi
 
 # both found, set output to additionally build tests against RADOS
 AM_CONDITIONAL(HAVE_RADOS, test x"$with_rados" == "xyes")
+
+AC_ARG_ENABLE(bedrock,
+              [AS_HELP_STRING([--enable-bedrock],[Enable Bedrock (Mochi loader) support @<:@default=no@:>@])],
+              [case "${enableval}" in
+                yes) enable_bedrock="yes" ;;
+                no) enable_bedrock="no" ;;
+                *) AC_MSG_ERROR(bad value ${enableval} for --enable-bedrock) ;;
+               esac],
+              [enable_bedrock="no"]
+)
+AM_CONDITIONAL(ENABLE_BEDROCK, test x$enable_bedrock = xyes)
+if test "$enable_bedrock" = "yes" ; then
+        AC_DEFINE(USE_BEDROCK, 1, [Bedrock support enabled.])
+        ENABLE_BEDROCK=1
+        PKG_CHECK_MODULES([BEDROCK],[bedrock-server],[],
+              AC_MSG_ERROR([Bedrock requested, but could not find bedrock]))
+else
+        ENABLE_BEDROCK=0
+fi
+AM_CONDITIONAL(BUILD_BEDROCK, test $ENABLE_BEDROCK -eq 1)
+AC_SUBST(ENABLE_BEDROCK)
+AC_SUBST(BEDROCK_LIBS)
+AC_SUBST(BEDROCK_CFLAGS)
 
 AC_SUBST(SERVER_LIBS)
 AC_SUBST(CLIENT_LIBS)

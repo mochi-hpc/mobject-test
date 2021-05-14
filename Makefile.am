@@ -22,9 +22,13 @@ SERVER_CFLAGS = @SERVER_CFLAGS@
 CLIENT_CFLAGS = @CLIENT_CFLAGS@
 
 lib_LTLIBRARIES = \
-  src/client/libmobject-store.la \
-  src/server/libmobject-server.la \
-  src/server/libmobject-comparators.la
+  lib/libmobject-client.la \
+  lib/libmobject-server.la \
+  lib/libmobject-comparators.la \
+  lib/libmobject-bedrock.la
+
+bin_PROGRAMS += \
+  bin/mobject-server-ctl
 
 include_HEADERS = \
   include/libmobject-store.h \
