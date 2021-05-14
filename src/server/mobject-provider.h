@@ -9,7 +9,6 @@
 #include <margo.h>
 #include <bake-client.h>
 #include <sdskv-client.h>
-#include <ssg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,8 +23,6 @@ struct mobject_provider {
     ABT_pool          pool;
     ABT_mutex         mutex;
     ABT_mutex         stats_mutex;
-    /* ssg-related data */
-    ssg_group_id_t gid;
     /* bake-related data */
     bake_provider_handle_t bake_ph;
     bake_target_id_t       bake_tid;

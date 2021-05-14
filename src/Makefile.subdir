@@ -80,9 +80,9 @@ src_server_libmobject_comparators_la_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
 
 src_server_mobject_server_ctl_SOURCES = \
   src/server/mobject-server-ctl.c
-src_server_mobject_server_ctl_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
-src_server_mobject_server_ctl_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
-src_server_mobject_server_ctl_LDADD = ${SERVER_LIBS}
+src_server_mobject_server_ctl_CPPFLAGS = ${AM_CPPFLAGS} ${CLIENT_CPPFLAGS}
+src_server_mobject_server_ctl_CFLAGS = ${AM_CFLAGS} ${CLIENT_CFLAGS}
+src_server_mobject_server_ctl_LDADD = ${CLIENT_LIBS}
 
 bin_PROGRAMS += \
   src/server/mobject-server-ctl

@@ -10,14 +10,11 @@
 #include <unistd.h>
 #include <abt.h>
 #include <margo.h>
-#include <ssg.h>
 
 #include "mobject-server.h"
 #include "src/server/mobject-provider.h"
 #include "src/rpc-types/write-op.h"
 #include "src/rpc-types/read-op.h"
-//#include "src/server/print-write-op.h"
-//#include "src/server/print-read-op.h"
 #include "src/io-chain/write-op-impl.h"
 #include "src/io-chain/read-op-impl.h"
 #include "src/server/visitor-args.h"
@@ -41,8 +38,6 @@ int mobject_provider_register(margo_instance_id       mid,
                               ABT_pool                pool,
                               bake_provider_handle_t  bake_ph,
                               sdskv_provider_handle_t sdskv_ph,
-                              ssg_group_id_t          gid,
-                              const char*             cluster_file,
                               mobject_provider_t*     provider)
 {
     mobject_provider_t tmp_provider;
@@ -72,27 +67,6 @@ int mobject_provider_register(margo_instance_id       mid,
     tmp_provider->ref_count   = 1;
     ABT_mutex_create(&tmp_provider->mutex);
     ABT_mutex_create(&tmp_provider->stats_mutex);
-
-    tmp_provider->gid = gid;
-    my_rank           = ssg_get_group_self_rank(tmp_provider->gid);
-
-    /* one proccess writes cluster connect info to file for clients to find
-     * later */
-    if (my_rank == 0) {
-        ret = ssg_group_id_store(cluster_file, tmp_provider->gid,
-                                 SSG_ALL_MEMBERS);
-        if (ret != 0) {
-            fprintf(stderr,
-                    "Error: unable to store mobject cluster info to file %s\n",
-                    cluster_file);
-            /* XXX: this call is performed by one process, and we do not
-             * currently have an easy way to propagate this error to the entire
-             * cluster group
-             */
-            free(tmp_provider);
-            return -1;
-        }
-    }
 
     /* Bake settings initialization */
     bake_provider_handle_ref_incr(bake_ph);
@@ -294,25 +268,23 @@ DEFINE_MARGO_RPC_HANDLER(mobject_server_clean_ult)
 
 static hg_return_t mobject_server_stat_ult(hg_handle_t h)
 {
-    hg_return_t     ret;
-    ssg_member_id_t my_id;
-    char            my_hostname[256] = {0};
+    hg_return_t ret;
+    char        my_hostname[256] = {0};
 
     const struct hg_info* info = margo_get_info(h);
     margo_instance_id     mid  = margo_hg_handle_get_instance(h);
 
     struct mobject_provider* provider = margo_registered_data(mid, info->id);
-    my_id                             = ssg_get_self_id(mid);
     gethostname(my_hostname, sizeof(my_hostname));
 
     ABT_mutex_lock(provider->stats_mutex);
     fprintf(stderr,
-            "Server %lu (host: %s):\n"
+            "Server (host: %s):\n"
             "\tSegments allocated: %u\n"
             "\tTotal segment size: %lu bytes\n"
             "\tTotal segment write time: %.4lf s\n"
             "\tTotal segment write b/w: %.4lf MiB/s\n",
-            my_id, my_hostname, provider->segs, provider->total_seg_size,
+            my_hostname, provider->segs, provider->total_seg_size,
             provider->total_seg_wr_duration,
             (provider->total_seg_size / (1024.0 * 1024.0)
              / provider->total_seg_wr_duration));
