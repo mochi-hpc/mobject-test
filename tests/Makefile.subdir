@@ -22,16 +22,17 @@ EXTRA_DIST += \
  tests/mobject-connect-test.sh \
  tests/mobject-client-test.sh \
  tests/mobject-aio-test.sh \
- tests/mobject-test-util.sh
+ tests/mobject-test-util.sh \
+ tests/config.json
 
-tests_mobject_connect_test_LDADD = src/client/libmobject-store.la ${CLIENT_LIBS}
+tests_mobject_connect_test_LDADD = lib/libmobject-client.la ${CLIENT_LIBS}
 if HAVE_RADOS
 tests_rados_mobject_connect_test_SOURCES = tests/mobject-connect-test.c
 tests_rados_mobject_connect_test_CFLAGS = -DUSE_RADOS
 tests_rados_mobject_connect_test_LDADD = -lrados
 endif
 
-tests_mobject_client_test_LDADD = src/client/libmobject-store.la ${CLIENT_LIBS}
+tests_mobject_client_test_LDADD = lib/libmobject-client.la ${CLIENT_LIBS}
 
-tests_mobject_aio_test_LDADD = src/client/libmobject-store.la ${CLIENT_LIBS}
+tests_mobject_aio_test_LDADD = lib/libmobject-client.la ${CLIENT_LIBS}
 

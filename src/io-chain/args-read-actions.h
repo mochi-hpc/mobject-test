@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __MOBJECT_ARGS_READ_ACTION_H
@@ -31,9 +31,9 @@
  * no extra data
  */
 typedef struct args_rd_action_READ {
-	uint64_t              offset;
-	size_t                len;
-	uint64_t              bulk_offset;
+    uint64_t offset;
+    size_t   len;
+    uint64_t bulk_offset;
 } args_rd_action_read;
 
 /**
@@ -42,8 +42,8 @@ typedef struct args_rd_action_READ {
  * (see read-actions.h)
  */
 typedef struct args_rd_action_OMAP_GET_KEYS {
-    uint64_t              max_return;
-	size_t                data_size;
+    uint64_t max_return;
+    size_t   data_size;
 } args_rd_action_omap_get_keys;
 
 /**
@@ -53,8 +53,8 @@ typedef struct args_rd_action_OMAP_GET_KEYS {
  * (see read-actions.h)
  */
 typedef struct args_rd_action_OMAP_GET_VALS {
-    uint64_t              max_return;
-	size_t                data_size;
+    uint64_t max_return;
+    size_t   data_size;
 } args_rd_action_omap_get_vals;
 
 /**
@@ -64,9 +64,8 @@ typedef struct args_rd_action_OMAP_GET_VALS {
  * in data_size
  */
 typedef struct args_rd_action_OMAP_GET_VALS_BY_KEYS {
-    size_t                num_keys;
-	size_t                data_size;
+    size_t num_keys;
+    size_t data_size;
 } args_rd_action_omap_get_vals_by_keys;
 
 #endif
-

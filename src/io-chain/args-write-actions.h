@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __MOBJECT_PI_WRITE_ACTION_H
@@ -23,7 +23,7 @@
  * no extra data
  */
 typedef struct args_wr_action_CREATE {
-	int                      exclusive;
+    int exclusive;
 } args_wr_action_create;
 
 /**
@@ -31,9 +31,9 @@ typedef struct args_wr_action_CREATE {
  * no extra data
  */
 typedef struct args_wr_action_WRITE {
-	uint64_t              buffer_position; // position in the received bulk handle
-	size_t                len;             // length in the received bulk handle
-	uint64_t              offset;          // offset at which to position the data in the object
+    uint64_t buffer_position; // position in the received bulk handle
+    size_t   len;             // length in the received bulk handle
+    uint64_t offset; // offset at which to position the data in the object
 } args_wr_action_write;
 
 /**
@@ -41,8 +41,8 @@ typedef struct args_wr_action_WRITE {
  * no extra data
  */
 typedef struct args_wr_action_WRITE_FULL {
-	uint64_t                 buffer_position; // position in the received bulk handle
-	size_t                   len;             // length in the received bulk handle
+    uint64_t buffer_position; // position in the received bulk handle
+    size_t   len;             // length in the received bulk handle
 } args_wr_action_write_full;
 
 /**
@@ -50,10 +50,10 @@ typedef struct args_wr_action_WRITE_FULL {
  * no extra data
  */
 typedef struct args_wr_action_WRITE_SAME {
-	uint64_t                 buffer_position; // position in the received bulk handle
-	size_t                   data_len;        // length to take from received data
-	size_t                   write_len;       // length to write in the object
-	uint64_t                 offset;          // at which offset to write in the object
+    uint64_t buffer_position; // position in the received bulk handle
+    size_t   data_len;        // length to take from received data
+    size_t   write_len;       // length to write in the object
+    uint64_t offset;          // at which offset to write in the object
 } args_wr_action_write_same;
 
 /**
@@ -61,8 +61,8 @@ typedef struct args_wr_action_WRITE_SAME {
  * no extra data
  */
 typedef struct args_wr_action_APPEND {
-	uint64_t                 buffer_position; // position in the received bulk handle
-	size_t                   len;             // length to take from received data
+    uint64_t buffer_position; // position in the received bulk handle
+    size_t   len;             // length to take from received data
 } args_wr_action_append;
 
 /**
@@ -78,7 +78,7 @@ typedef struct args_wr_action_APPEND {
  * no extra data
  */
 typedef struct args_wr_action_TRUNCATE {
-	uint64_t                 offset; // offset at which to truncate the object
+    uint64_t offset; // offset at which to truncate the object
 } args_wr_action_truncate;
 
 /**
@@ -86,8 +86,8 @@ typedef struct args_wr_action_TRUNCATE {
  * no extra data
  */
 typedef struct args_wr_action_ZERO {
-	uint64_t                 offset; // offset at which to start zero-ing
-	uint64_t                 len;    // length to set to zero
+    uint64_t offset; // offset at which to start zero-ing
+    uint64_t len;    // length to set to zero
 } args_wr_action_zero;
 
 /**
@@ -98,8 +98,8 @@ typedef struct args_wr_action_ZERO {
  * (see write-op-impl.h for the format)
  */
 typedef struct args_wr_action_OMAP_SET {
-	size_t                   num;
-	size_t                   data_size;
+    size_t num;
+    size_t data_size;
 } args_wr_action_omap_set;
 
 /**
@@ -110,9 +110,8 @@ typedef struct args_wr_action_OMAP_SET {
  * (see write-op-impl.h for the format)
  */
 typedef struct args_wr_action_RM_KEYS {
-	size_t                   num_keys;
-	size_t                   data_size;
+    size_t num_keys;
+    size_t data_size;
 } args_wr_action_omap_rm_keys;
 
 #endif
-
