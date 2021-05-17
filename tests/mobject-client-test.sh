@@ -14,8 +14,8 @@ MOBJECT_CLUSTER_FILE=mobject.ssg
 
 ##############
 
-# start 1 server with 5 second wait, 20s timeout
-mobject_test_start_servers 1 5 20 $MOBJECT_CLUSTER_FILE
+# start a server with 5 second wait, 20s timeout
+mobject_test_start_servers 5 20 $MOBJECT_CLUSTER_FILE
 
 ##############
 
