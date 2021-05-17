@@ -81,7 +81,7 @@
         {
             "name" : "coordinator",
             "type" : "mobject",
-            "provider_id" : 0,
+            "provider_id" : 1,
             "config" : {},
             "dependencies" : {
                 "bake_provider_handle" : "bake:0@local",
