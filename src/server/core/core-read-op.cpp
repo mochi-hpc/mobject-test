@@ -19,17 +19,8 @@
 #include "src/server/core/key-types.h"
 #include "src/server/core/covermap.hpp"
 
-static int tabs = 0;
-/*
-#define ENTERING {for(int i=0; i<tabs; i++) fprintf(stderr," ");
-fprintf(stderr,"[ENTERING]>> %s\n",__FUNCTION__); tabs += 1;} #define LEAVING
-{tabs -= 1; for(int i=0; i<tabs; i++) fprintf(stderr," ");
-fprintf(stderr,"[LEAVING]<<< %s\n",__FUNCTION__); } #define ERROR    {for(int
-i=0; i<(tabs+1); i++) fprintf(stderr, " "); fprintf(stderr,"[ERROR] "); }
-*/
-#define ENTERING
-#define LEAVING
-#define ERROR
+#define ENTERING margo_trace(mid, "[mobject] Entering function %s", __func__);
+#define LEAVING  margo_trace(mid, "[mobject] Leaving function %s", __func__);
 
 static void read_op_exec_begin(void*);
 static void read_op_exec_stat(void*, uint64_t*, time_t*, int*);
@@ -53,7 +44,8 @@ extern uint64_t mobject_compute_object_size(struct mobject_provider* provider,
                                             oid_t                    oid,
                                             time_t                   ts);
 
-static oid_t get_oid_from_name(sdskv_provider_handle_t ph,
+static oid_t get_oid_from_name(margo_instance_id       mid,
+                               sdskv_provider_handle_t ph,
                                sdskv_database_id_t     name_db_id,
                                const char*             name);
 
@@ -86,15 +78,16 @@ extern "C" void core_read_op(mobject_store_read_op_t read_op,
 
 void read_op_exec_begin(void* u)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto vargs = static_cast<server_visitor_args_t>(u);
     // find oid
     const char* object_name = vargs->object_name;
     oid_t       oid         = vargs->oid;
     if (oid == 0) {
         sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
         sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
-        oid        = get_oid_from_name(sdskv_ph, name_db_id, object_name);
+        oid        = get_oid_from_name(mid, sdskv_ph, name_db_id, object_name);
         vargs->oid = oid;
     }
     LEAVING
@@ -102,8 +95,9 @@ void read_op_exec_begin(void* u)
 
 void read_op_exec_stat(void* u, uint64_t* psize, time_t* pmtime, int* prval)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs     = static_cast<server_visitor_args_t>(u);
     sdskv_provider_handle_t sdskv_ph  = vargs->provider->sdskv_ph;
     sdskv_database_id_t     seg_db_id = vargs->provider->segment_db_id;
     // find oid
@@ -128,10 +122,11 @@ void read_op_exec_read(void*    u,
                        size_t*  bytes_read,
                        int*     prval)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs = static_cast<server_visitor_args_t>(u);
-    bake_provider_handle_t  bph   = vargs->provider->bake_ph;
-    bake_target_id_t        bti   = vargs->provider->bake_tid;
+    bake_provider_handle_t  bph = vargs->provider->bake_ph;
+    bake_target_id_t        bti = vargs->provider->bake_tid;
     bake_region_id_t        rid;
     hg_bulk_t               remote_bulk     = vargs->bulk_handle;
     const char*             remote_addr_str = vargs->client_addr_str;
@@ -149,7 +144,7 @@ void read_op_exec_read(void*    u,
     oid_t oid = vargs->oid;
     if (oid == 0) {
         *prval = -1;
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -187,7 +182,8 @@ void read_op_exec_read(void*    u,
                                  segment_data_size, &num_segments);
 
         if (ret != SDSKV_SUCCESS) {
-            ERROR fprintf(stderr, "sdskv_list_keyvals returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_list_keyvals returned %d",
+                        __func__, __LINE__, ret);
             *prval = -1;
             LEAVING;
             return;
@@ -227,16 +223,22 @@ void read_op_exec_read(void*    u,
                                           &bytes_read);
                     if (ret != 0) {
                         *prval = -1;
-                        ERROR fprintf(stderr, "bake_proxy_read returned %d\n",
-                                      ret);
+                        margo_error(
+                            mid, "[mobject] %s:%d: bake_proxy_read returned %d",
+                            __func__, __LINE__, ret);
                         LEAVING;
                         return;
                     } else if (bytes_read != segment_size) {
                         *prval = -1;
-                        ERROR fprintf(stderr,
-                                      "bake_proxy_read invalid read of %" PRIu64
-                                      " (requested=%" PRIu64 ")\n",
-                                      bytes_read, segment_size);
+                        margo_error(mid,
+                                    "bake_proxy_read invalid read of %" PRIu64
+                                    " (requested=%" PRIu64 ")",
+                                    bytes_read, segment_size);
+                        margo_error(
+                            mid,
+                            "[mobject] %s:%d: baje_proxy_read invalid read of "
+                            "%" PRIu64 " (requested %" PRIu64 ")",
+                            __func__, __LINE__, bytes_read, segment_size);
                         LEAVING;
                         return;
                     }
@@ -259,8 +261,10 @@ void read_op_exec_read(void*    u,
                     ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes,
                                             HG_BULK_READ_ONLY, &handle);
                     if (ret != HG_SUCCESS) {
-                        ERROR fprintf(stderr, "margo_bulk_create returned %d\n",
-                                      ret);
+                        margo_error(
+                            mid,
+                            "[mobject] %s:%d: margo_bulk_create returned %d",
+                            __func__, __LINE__, ret);
                         LEAVING;
                         *prval = -1;
                         return;
@@ -269,16 +273,21 @@ void read_op_exec_read(void*    u,
                         mid, HG_BULK_PUSH, remote_addr, remote_bulk,
                         buf.as_offset + remote_offset, handle, 0, segment_size);
                     if (ret != HG_SUCCESS) {
-                        ERROR fprintf(stderr,
-                                      "margo_bulk_transfer returned %d\n", ret);
+                        margo_error(mid, "margo_bulk_transfer returned %d",
+                                    ret);
+                        margo_error(
+                            mid,
+                            "[mobject] %s:%d: margo_bulk_transfer returned %d",
+                            __func__, __LINE__, ret);
                         *prval = -1;
                         LEAVING;
                         return;
                     } // end if
                     ret = margo_bulk_free(handle);
                     if (ret != HG_SUCCESS) {
-                        ERROR fprintf(stderr, "margo_bulk_free returned %d\n",
-                                      ret);
+                        margo_error(
+                            mid, "[mobject] %s:%d: margo_bulk_free returned %d",
+                            __func__, __LINE__, ret);
                         *prval = -1;
                         LEAVING;
                         return;
@@ -306,8 +315,9 @@ void read_op_exec_omap_get_keys(void*                      u,
                                 mobject_store_omap_iter_t* iter,
                                 int*                       prval)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
     sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
     sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
@@ -317,7 +327,7 @@ void read_op_exec_omap_get_keys(void*                      u,
     oid_t oid = vargs->oid;
     if (oid == 0) {
         *prval = -1;
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -343,7 +353,8 @@ void read_op_exec_omap_get_keys(void*                      u,
                               keys.data(), ksizes.data(), &keys_retrieved);
         if (ret != SDSKV_SUCCESS) {
             *prval = -1;
-            ERROR fprintf(stderr, "sdskv_list_keys returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_list_keys returned %d",
+                        __func__, __LINE__, ret);
             break;
         }
         const char* k = NULL;
@@ -375,8 +386,9 @@ void read_op_exec_omap_get_vals(void*                      u,
                                 mobject_store_omap_iter_t* iter,
                                 int*                       prval)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
     sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
     sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
@@ -386,7 +398,7 @@ void read_op_exec_omap_get_vals(void*                      u,
     oid_t oid = vargs->oid;
     if (oid == 0) {
         *prval = -1;
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -436,8 +448,10 @@ void read_op_exec_omap_get_vals(void*                      u,
             vsizes.data(), &items_retrieved);
         if (ret != SDSKV_SUCCESS) {
             *prval = -1;
-            ERROR fprintf(stderr,
-                          "sdskv_list_keyvals_with_prefix returned %d\n", ret);
+            margo_error(
+                mid,
+                "[mobject] %s:%d: sdskv_list_keyvals_with_prefix returned %d",
+                __func__, __LINE__, ret);
             break;
         }
         const char* k;
@@ -469,8 +483,9 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
                                         mobject_store_omap_iter_t* iter,
                                         int*                       prval)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
     sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
     sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
@@ -480,7 +495,7 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
     oid_t oid = vargs->oid;
     if (oid == 0) {
         *prval = -1;
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -508,7 +523,8 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
                            &vsize);
         if (ret != SDSKV_SUCCESS) {
             *prval = -1;
-            ERROR fprintf(stderr, "sdskv_length returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_length returned %d",
+                        __func__, __LINE__, ret);
             break;
         }
         std::vector<char> value(vsize);
@@ -516,7 +532,8 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
                         (void*)value.data(), &vsize);
         if (ret != SDSKV_SUCCESS) {
             *prval = -1;
-            ERROR fprintf(stderr, "sdskv_get returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_get returned %d", __func__,
+                        __LINE__, ret);
             break;
         }
         omap_iter_append(*iter, keys[i], value.data(), vsize);
@@ -529,7 +546,8 @@ void read_op_exec_end(void* u)
     auto vargs = static_cast<server_visitor_args_t>(u);
 }
 
-static oid_t get_oid_from_name(sdskv_provider_handle_t ph,
+static oid_t get_oid_from_name(margo_instance_id       mid,
+                               sdskv_provider_handle_t ph,
                                sdskv_database_id_t     name_db_id,
                                const char*             name)
 {
