@@ -23,6 +23,8 @@
 
 static unsigned long sdbm_hash(const char* str);
 
+static margo_log_level log_level = MARGO_LOG_INFO;
+
 static int
 mobject_store_shutdown_servers(struct mobject_store_handle* cluster_handle);
 
@@ -35,7 +37,20 @@ int mobject_store_create(mobject_store_t* cluster, const char* const id)
 
     (void)id; /* XXX: id unused in mobject */
 
-    margo_set_global_log_level(MARGO_LOG_TRACE);
+    char* log_level_env = getenv("MOBJECT_CLIENT_LOG_LEVEL");
+    if (log_level_env != NULL) {
+        if (strcmp(log_level_env, "trace") == 0) log_level = MARGO_LOG_TRACE;
+        if (strcmp(log_level_env, "debug") == 0) log_level = MARGO_LOG_DEBUG;
+        if (strcmp(log_level_env, "info") == 0) log_level = MARGO_LOG_INFO;
+        if (strcmp(log_level_env, "warning") == 0)
+            log_level = MARGO_LOG_WARNING;
+        if (strcmp(log_level_env, "error") == 0) log_level = MARGO_LOG_ERROR;
+        if (strcmp(log_level_env, "critical") == 0)
+            log_level = MARGO_LOG_CRITICAL;
+    } else {
+        log_level = MARGO_LOG_INFO;
+    }
+    margo_set_global_log_level(log_level);
 
     /* initialize ssg */
     /* XXX: we need to think about how to do this once per-client... clients
@@ -124,7 +139,7 @@ int mobject_store_connect(mobject_store_t cluster)
         return -1;
     }
     cluster_handle->mid = mid;
-    margo_set_log_level(mid, MARGO_LOG_TRACE);
+    margo_set_log_level(mid, log_level);
 
     /* observe the cluster group */
     ret = ssg_group_observe(mid, cluster_handle->gid);
