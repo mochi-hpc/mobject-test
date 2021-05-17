@@ -12,30 +12,8 @@
 #include "src/server/visitor-args.h"
 #include "src/io-chain/write-op-visitor.h"
 
-#if 0
-static int tabs = 0;
-    #define ENTERING                                             \
-        {                                                        \
-            for (int i = 0; i < tabs; i++) fprintf(stderr, " "); \
-            fprintf(stderr, "[ENTERING]>> %s\n", __FUNCTION__);  \
-            tabs += 1;                                           \
-        }
-    #define LEAVING                                              \
-        {                                                        \
-            tabs -= 1;                                           \
-            for (int i = 0; i < tabs; i++) fprintf(stderr, " "); \
-            fprintf(stderr, "[LEAVING]<<< %s\n", __FUNCTION__);  \
-        }
-    #define ERROR                                                      \
-        {                                                              \
-            for (int i = 0; i < (tabs + 1); i++) fprintf(stderr, " "); \
-            fprintf(stderr, "[ERROR] ");                               \
-        }
-#else
-    #define ENTERING
-    #define LEAVING
-    #define ERROR
-#endif
+#define ENTERING margo_trace(mid, "[mobject] Entering function %s", __func__);
+#define LEAVING  margo_trace(mid, "[mobject] Leaving function %s", __func__);
 
 static void write_op_exec_begin(void*);
 static void write_op_exec_end(void*);
@@ -51,10 +29,11 @@ static void write_op_exec_omap_set(
     void*, char const* const*, char const* const*, const size_t*, size_t);
 static void write_op_exec_omap_rm_keys(void*, char const* const*, size_t);
 
-static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
-                               sdskv_database_id_t     name_db_id,
-                               sdskv_database_id_t     oid_db_id,
-                               const char*             object_name);
+static oid_t get_or_create_oid(struct mobject_provider* provider,
+                               sdskv_provider_handle_t  ph,
+                               sdskv_database_id_t      name_db_id,
+                               sdskv_database_id_t      oid_db_id,
+                               const char*              object_name);
 
 static void insert_region_log_entry(struct mobject_provider* provider,
                                     oid_t                    oid,
@@ -81,10 +60,11 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
                                    uint64_t                 offset,
                                    time_t                   ts = 0);
 
-uint64_t mobject_compute_object_size(sdskv_provider_handle_t ph,
-                                     sdskv_database_id_t     seg_db_id,
-                                     oid_t                   oid,
-                                     time_t                  ts);
+uint64_t mobject_compute_object_size(struct mobject_provider* provider,
+                                     sdskv_provider_handle_t  ph,
+                                     sdskv_database_id_t      seg_db_id,
+                                     oid_t                    oid,
+                                     time_t                   ts);
 
 static struct write_op_visitor write_op_exec
     = {.visit_begin        = write_op_exec_begin,
@@ -113,8 +93,8 @@ void write_op_exec_begin(void* u)
     sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
     sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
     sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
-    oid_t oid  = get_or_create_oid(sdskv_ph, name_db_id, oid_db_id,
-                                  vargs->object_name);
+    oid_t oid  = get_or_create_oid(vargs->provider, sdskv_ph, name_db_id,
+                                  oid_db_id, vargs->object_name);
     vargs->oid = oid;
 }
 
@@ -125,10 +105,13 @@ void write_op_exec_end(void* u)
 
 void write_op_exec_create(void* u, int exclusive)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    oid_t             oid   = vargs->oid;
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
-    if (oid == 0) { ERROR fprintf(stderr, "oid == 0\n"); }
+    if (oid == 0) {
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
+    }
     /* nothing to do, the object is actually created in write_op_exec_begin
        if it did not exist before */
     LEAVING;
@@ -136,11 +119,12 @@ void write_op_exec_create(void* u, int exclusive)
 
 void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
+    oid_t oid = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -168,14 +152,26 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
     if (len > SMALL_REGION_THRESHOLD) {
         ret = bake_create(bake_ph, bti, len, &rid);
         if (ret != 0) {
-            ERROR bake_perror("bake_create", ret);
+            margo_error(mid, "[mobject] %s:%d: bake_create returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
             return;
         }
         ret = bake_proxy_write(bake_ph, bti, rid, 0, remote_bulk, buf.as_offset,
                                remote_addr_str, len);
-        if (ret != 0) { ERROR bake_perror("bake_proxy_write", ret); }
+        if (ret != 0) {
+            margo_error(mid, "[mobject] %s:%d: bake_proxy_write returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
+        }
         ret = bake_persist(bake_ph, bti, rid, 0, len);
-        if (ret != 0) { ERROR bake_perror("bake_persist", ret); }
+        if (ret != 0) {
+            margo_error(mid, "[mobject] %s:%d: bake_persist returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
+        }
 
         insert_region_log_entry(provider, oid, offset, len, &rid);
     } else {
@@ -187,17 +183,21 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
         ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes, HG_BULK_WRITE_ONLY,
                                 &handle);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_create returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_create returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
         }
         ret = margo_bulk_transfer(mid, HG_BULK_PULL, remote_addr, remote_bulk,
                                   buf.as_offset, handle, 0, len);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_transfer returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_transfer returned %d",
+                        __func__, __LINE__, ret);
+            margo_bulk_free(handle);
+            LEAVING;
+            return;
         }
-        ret = margo_bulk_free(handle);
-        if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_free returned %d\n", ret);
-        }
+        margo_bulk_free(handle);
 
         insert_small_region_log_entry(provider, oid, offset, len, data);
     }
@@ -218,6 +218,8 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
 
 void write_op_exec_write_full(void* u, buffer_u buf, size_t len)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
     // truncate to 0 then write
     write_op_exec_truncate(u, 0);
@@ -228,11 +230,12 @@ void write_op_exec_write_full(void* u, buffer_u buf, size_t len)
 void write_op_exec_writesame(
     void* u, buffer_u buf, size_t data_len, size_t write_len, uint64_t offset)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
+    oid_t oid = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -250,20 +253,23 @@ void write_op_exec_writesame(
 
         ret = bake_create(bph, bti, data_len, &rid);
         if (ret != 0) {
-            ERROR bake_perror("bake_create", ret);
+            margo_error(mid, "[mobject] %s:%d: bake_create returned %d",
+                        __func__, __LINE__, ret);
             LEAVING;
             return;
         }
         ret = bake_proxy_write(bph, bti, rid, 0, remote_bulk, buf.as_offset,
                                remote_addr_str, data_len);
         if (ret != 0) {
-            ERROR bake_perror("bake_proxy_write", ret);
+            margo_error(mid, "[mobject] %s:%d: bake_proxy_write returned %d",
+                        __func__, __LINE__, ret);
             LEAVING;
             return;
         }
         ret = bake_persist(bph, bti, rid, 0, data_len);
         if (ret != 0) {
-            ERROR bake_perror("bake_persist", ret);
+            margo_error(mid, "[mobject] %s:%d: bake_persist returned %d",
+                        __func__, __LINE__, ret);
             LEAVING;
             return;
         }
@@ -289,17 +295,21 @@ void write_op_exec_writesame(
         ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes, HG_BULK_WRITE_ONLY,
                                 &handle);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_create returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_create returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
         }
         ret = margo_bulk_transfer(mid, HG_BULK_PULL, remote_addr, remote_bulk,
                                   buf.as_offset, handle, 0, data_len);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_transfer returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_transfer returned %d",
+                        __func__, __LINE__, ret);
+            margo_bulk_free(handle);
+            LEAVING;
+            return;
         }
-        ret = margo_bulk_free(handle);
-        if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_free returned %d\n", ret);
-        }
+        margo_bulk_free(handle);
 
         size_t i;
         for (i = 0; i < write_len; i += data_len) {
@@ -313,11 +323,12 @@ void write_op_exec_writesame(
 
 void write_op_exec_append(void* u, buffer_u buf, size_t len)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
+    oid_t oid = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -330,7 +341,8 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
     // find out the current length of the object
     time_t   ts     = time(NULL);
     uint64_t offset = mobject_compute_object_size(
-        vargs->provider->sdskv_ph, vargs->provider->segment_db_id, oid, ts);
+        vargs->provider, vargs->provider->sdskv_ph,
+        vargs->provider->segment_db_id, oid, ts);
 
     if (len > SMALL_REGION_THRESHOLD) {
 
@@ -339,12 +351,27 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
         bake_region_id_t       rid;
 
         ret = bake_create(bph, bti, len, &rid);
-        if (ret != 0) bake_perror("bake_create", ret);
+        if (ret != 0) {
+            margo_error(mid, "[mobject] %s:%d: bake_create returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
+        }
         ret = bake_proxy_write(bph, bti, rid, 0, remote_bulk, buf.as_offset,
                                remote_addr_str, len);
-        if (ret != 0) bake_perror("bake_proxy_write", ret);
+        if (ret != 0) {
+            margo_error(mid, "[mobject] %s:%d: bake_proxy_write returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
+        }
         ret = bake_persist(bph, bti, rid, 0, len);
-        if (ret != 0) bake_perror("bake_persist", ret);
+        if (ret != 0) {
+            margo_error(mid, "[mobject] %s:%d: bake_persist returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
+        }
 
         insert_region_log_entry(vargs->provider, oid, offset, len, &rid, ts);
 
@@ -358,17 +385,21 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
         ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes, HG_BULK_WRITE_ONLY,
                                 &handle);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_create returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_create returned %d",
+                        __func__, __LINE__, ret);
+            LEAVING;
+            return;
         }
         ret = margo_bulk_transfer(mid, HG_BULK_PULL, remote_addr, remote_bulk,
                                   buf.as_offset, handle, 0, len);
         if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_transfer returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: margo_bulk_transfer returned %d",
+                        __func__, __LINE__, ret);
+            margo_bulk_free(handle);
+            LEAVING;
+            return;
         }
-        ret = margo_bulk_free(handle);
-        if (ret != 0) {
-            ERROR fprintf(stderr, "margo_bulk_free returned %d\n", ret);
-        }
+        margo_bulk_free(handle);
 
         insert_small_region_log_entry(vargs->provider, oid, offset, len, data);
     }
@@ -377,8 +408,9 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
 
 void write_op_exec_remove(void* u)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto                    vargs       = static_cast<server_visitor_args_t>(u);
     const char*             object_name = vargs->object_name;
     oid_t                   oid         = vargs->oid;
     bake_provider_handle_t  bake_ph     = vargs->provider->bake_ph;
@@ -393,10 +425,8 @@ void write_op_exec_remove(void* u)
     ret = sdskv_erase(sdskv_ph, name_db_id, (const void*)object_name,
                       strlen(object_name) + 1);
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr,
-                      "write_op_exec_remove: "
-                      "error in name_db sdskv_erase() (ret = %d)\n",
-                      ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d", __func__,
+                    __LINE__, ret);
         LEAVING;
         return;
     }
@@ -405,10 +435,8 @@ void write_op_exec_remove(void* u)
 
     ret = sdskv_erase(sdskv_ph, oid_db_id, &oid, sizeof(oid));
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr,
-                      "write_op_exec_remove: "
-                      "error in oid_db sdskv_erase() (ret = %d)\n",
-                      ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d", __func__,
+                    __LINE__, ret);
         LEAVING;
         return;
     }
@@ -444,11 +472,8 @@ void write_op_exec_remove(void* u)
                                  segment_data_size, &num_segments);
 
         if (ret != SDSKV_SUCCESS) {
-            /* XXX should save the error and keep removing */
-            ERROR fprintf(stderr,
-                          "write_op_exec_remove: "
-                          "error in sdskv_list_keyvals() (ret = %d)\n",
-                          ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_list_keyvals returned %d",
+                        __func__, __LINE__, ret);
             LEAVING;
             return;
         }
@@ -466,21 +491,17 @@ void write_op_exec_remove(void* u)
             if (seg.type == seg_type_t::BAKE_REGION) {
                 ret = bake_remove(bake_ph, bti, region);
                 if (ret != BAKE_SUCCESS) {
+                    margo_error(mid, "[mobject] %s:%d: bake_remove returned %d",
+                                __func__, __LINE__, ret);
                     /* XXX should save the error and keep removing */
-                    ERROR bake_perror(
-                        "write_op_exec_remove: "
-                        "error in bake_remove()",
-                        ret);
                     LEAVING;
                     return;
                 }
             }
             ret = sdskv_erase(sdskv_ph, seg_db_id, &seg, sizeof(seg));
             if (ret != SDSKV_SUCCESS) {
-                ERROR fprintf(stderr,
-                              "write_op_exec_remove: "
-                              "error in seg_db sdskv_erase() (ret = %d)\n",
-                              ret);
+                margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d",
+                            __func__, __LINE__, ret);
                 LEAVING;
                 return;
             }
@@ -494,12 +515,14 @@ void write_op_exec_remove(void* u)
 
 void write_op_exec_truncate(void* u, uint64_t offset)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
+    oid_t oid = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
+        return;
     }
 
     insert_punch_log_entry(vargs->provider, oid, offset);
@@ -508,11 +531,12 @@ void write_op_exec_truncate(void* u, uint64_t offset)
 
 void write_op_exec_zero(void* u, uint64_t offset, uint64_t len)
 {
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    auto  vargs = static_cast<server_visitor_args_t>(u);
-    oid_t oid   = vargs->oid;
+    oid_t oid = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -527,16 +551,17 @@ void write_op_exec_omap_set(void*              u,
                             const size_t*      lens,
                             size_t             num)
 {
+    int               ret;
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    int                     ret;
-    auto                    vargs      = static_cast<server_visitor_args_t>(u);
     sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
     sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
     sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
     sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
     oid_t                   oid        = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -559,9 +584,8 @@ void write_op_exec_omap_set(void*              u,
         ret = sdskv_put(sdskv_ph, omap_db_id, (const void*)k, k_len,
                         (const void*)vals[i], lens[i]);
         if (ret != SDSKV_SUCCESS) {
-            fprintf(stderr,
-                    "write_op_exec_omap_set: error in sdskv_put() (ret = %d)\n",
-                    ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                        __LINE__, ret);
         }
     }
     free(k);
@@ -572,16 +596,17 @@ void write_op_exec_omap_rm_keys(void*              u,
                                 char const* const* keys,
                                 size_t             num_keys)
 {
+    int               ret;
+    auto              vargs = static_cast<server_visitor_args_t>(u);
+    margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    int                     ret;
-    auto                    vargs      = static_cast<server_visitor_args_t>(u);
     sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
     sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
     sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
     sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
     oid_t                   oid        = vargs->oid;
     if (oid == 0) {
-        ERROR fprintf(stderr, "oid == 0\n");
+        margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
@@ -590,19 +615,19 @@ void write_op_exec_omap_rm_keys(void*              u,
         ret = sdskv_erase(sdskv_ph, omap_db_id, (const void*)keys[i],
                           strlen(keys[i]) + 1);
         if (ret != SDSKV_SUCCESS)
-            fprintf(stderr,
-                    "write_op_exec_omap_rm_keys: error in sdskv_erase() (ret = "
-                    "%d)\n",
-                    ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d",
+                        __func__, __LINE__, ret);
     }
     LEAVING;
 }
 
-static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
-                               sdskv_database_id_t     name_db_id,
-                               sdskv_database_id_t     oid_db_id,
-                               const char*             object_name)
+static oid_t get_or_create_oid(struct mobject_provider* provider,
+                               sdskv_provider_handle_t  ph,
+                               sdskv_database_id_t      name_db_id,
+                               sdskv_database_id_t      oid_db_id,
+                               const char*              object_name)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     oid_t     oid = 0;
     hg_size_t s;
@@ -640,8 +665,8 @@ static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
         free(name_check);
         // we make sure we stopped at an unknown key (not another SDSKV error)
         if (ret != SDSKV_ERR_UNKNOWN_KEY) {
-            fprintf(stderr, "[ERROR] ret != SDSKV_ERR_UNKNOWN_KEY (ret = %d)\n",
-                    ret);
+            margo_error(mid, "[mobject] %s:%d: ret != SDSKV_ERR_UNKONW_KEY",
+                        __func__, __LINE__);
             LEAVING;
             return 0;
         }
@@ -649,10 +674,8 @@ static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
         ret = sdskv_put(ph, name_db_id, (const void*)object_name,
                         strlen(object_name) + 1, &oid, sizeof(oid));
         if (ret != SDSKV_SUCCESS) {
-            fprintf(stderr,
-                    "[WARNING] after sdskv_put(name->oid), ret != "
-                    "SDSKV_SUCCESS (ret = %d)\n",
-                    ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                        __LINE__, ret);
             LEAVING;
             return 0;
         }
@@ -660,10 +683,8 @@ static oid_t get_or_create_oid(sdskv_provider_handle_t ph,
         ret = sdskv_put(ph, oid_db_id, &oid, sizeof(oid),
                         (const void*)object_name, strlen(object_name) + 1);
         if (ret != SDSKV_SUCCESS) {
-            fprintf(stderr,
-                    "[WARNING] after sdskv_put(oid->name), ret != "
-                    "SDSKV_SUCCESS (ret = %d)\n",
-                    ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                        __LINE__, ret);
             LEAVING;
             return 0;
         }
@@ -679,6 +700,7 @@ static void insert_region_log_entry(struct mobject_provider* provider,
                                     bake_region_id_t*        region,
                                     time_t                   ts)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
     sdskv_database_id_t     seg_db_id = provider->segment_db_id;
@@ -695,7 +717,8 @@ static void insert_region_log_entry(struct mobject_provider* provider,
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)region, sizeof(*region));
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr, "sdskv_put returned %d\n", ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                    __LINE__, ret);
     }
     LEAVING;
 }
@@ -707,6 +730,7 @@ static void insert_small_region_log_entry(struct mobject_provider* provider,
                                           const char*              data,
                                           time_t                   ts)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
     sdskv_database_id_t     seg_db_id = provider->segment_db_id;
@@ -723,7 +747,8 @@ static void insert_small_region_log_entry(struct mobject_provider* provider,
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)data, len);
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr, "sdskv_put returned %d\n", ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                    __LINE__, ret);
     }
     LEAVING;
 }
@@ -734,6 +759,7 @@ static void insert_zero_log_entry(struct mobject_provider* provider,
                                   uint64_t                 len,
                                   time_t                   ts)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
     sdskv_database_id_t     seg_db_id = provider->segment_db_id;
@@ -750,7 +776,8 @@ static void insert_zero_log_entry(struct mobject_provider* provider,
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)nullptr, 0);
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr, "sdskv_put returned %d\n", ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                    __LINE__, ret);
     }
     LEAVING;
 }
@@ -760,6 +787,7 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
                                    uint64_t                 offset,
                                    time_t                   ts)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
     sdskv_database_id_t     seg_db_id = provider->segment_db_id;
@@ -776,16 +804,19 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
     int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
                         (const void*)nullptr, 0);
     if (ret != SDSKV_SUCCESS) {
-        ERROR fprintf(stderr, "sdskv_put returned %d\n", ret);
+        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
+                    __LINE__, ret);
     }
     LEAVING;
 }
 
-uint64_t mobject_compute_object_size(sdskv_provider_handle_t ph,
-                                     sdskv_database_id_t     seg_db_id,
-                                     oid_t                   oid,
-                                     time_t                  ts)
+uint64_t mobject_compute_object_size(struct mobject_provider* provider,
+                                     sdskv_provider_handle_t  ph,
+                                     sdskv_database_id_t      seg_db_id,
+                                     oid_t                    oid,
+                                     time_t                   ts)
 {
+    margo_instance_id mid = provider->mid;
     ENTERING;
     segment_key_t lb;
     lb.oid       = oid;
@@ -816,7 +847,8 @@ uint64_t mobject_compute_object_size(sdskv_provider_handle_t ph,
                                   &num_items);
 
         if (ret != SDSKV_SUCCESS) {
-            ERROR fprintf(stderr, "sdskv_list_keys returned %d\n", ret);
+            margo_error(mid, "[mobject] %s:%d: sdskv_list_keys returned %d",
+                        __func__, __LINE__, ret);
             LEAVING;
             return 0;
         }

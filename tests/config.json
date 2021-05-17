@@ -10,7 +10,7 @@
     "libraries" : {
         "sdskv"   : "libsdskv-bedrock.so",
         "bake"    : "libbake-bedrock.so",
-        "mobject" : "libmobject-bedrock.so"
+        "mobject" : "lib/.libs/libmobject-bedrock.so"
     },
     "abt_io" : [
         {
@@ -26,13 +26,13 @@
             "config" : {
                 "comparators" : [
                     { "name" : "mobject_oid_map_compare",
-                      "library" : "libmobject-comparators.so" },
+                      "library" : "lib/.libs/libmobject-comparators.so" },
                     { "name" : "mobject_name_map_compare",
-                      "library" : "libmobject-comparators.so" },
+                      "library" : "lib/.libs/libmobject-comparators.so" },
                     { "name" : "mobject_seg_map_compare",
-                      "library" : "libmobject-comparators.so" },
+                      "library" : "lib/.libs/libmobject-comparators.so" },
                     { "name" : "mobject_omap_map_compare",
-                      "library" : "libmobject-comparators.so" }
+                      "library" : "lib/.libs/libmobject-comparators.so" }
                 ],
                 "databases" : [
                     {
@@ -81,11 +81,11 @@
         {
             "name" : "coordinator",
             "type" : "mobject",
-            "provider_id" : 0,
+            "provider_id" : 1,
             "config" : {},
             "dependencies" : {
-                "bake_provider_handle" : "bake:0@local",
-                "sdskv_provider_handle" : "sdskv:0@local"
+                "bake_provider_handle" : "storage@local",
+                "sdskv_provider_handle" : "metadata@local"
             }
         }
     ]

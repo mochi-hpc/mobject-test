@@ -8,6 +8,7 @@ const char* content = "AAAABBBBCCCCDDDDEEEEFFFF";
 /* Main function. */
 int main(int argc, char** argv)
 {
+    int ret;
     mobject_store_t cluster;
     mobject_store_create(&cluster, "admin");
     mobject_store_connect(cluster);
@@ -57,10 +58,11 @@ int main(int argc, char** argv)
            shane    => ssnyder@anl.gov
         */
         // Add a omap_rm_keys" operation
-//        mobject_store_write_op_omap_rm_keys(write_op, keys, 5);
+//        ret = mobject_store_write_op_omap_rm_keys(write_op, keys, 5);
 
-        mobject_store_write_op_operate(write_op, ioctx, objects[i], NULL, LIBMOBJECT_OPERATION_NOFLAG);
-
+        ret = mobject_store_write_op_operate(write_op, ioctx, objects[i], NULL, LIBMOBJECT_OPERATION_NOFLAG);
+        if (ret != 0)
+            return -1;
         mobject_store_release_write_op(write_op);
 
     }
@@ -82,20 +84,20 @@ int main(int argc, char** argv)
         mobject_store_read_op_read(read_op, 0, 512, read_buf, &bytes_read, &prval2);
         // Add "omap_get_keys" operation
         const char* start_after1 = "rob";
-        mobject_store_omap_iter_t iter3;
+        mobject_store_omap_iter_t iter3 = NULL;
         int prval3;
-        // the following should return ["robl","shane"] 
+        // the following should return ["robl","shane"]
         mobject_store_read_op_omap_get_keys(read_op, start_after1, 7, &iter3, &prval3);
         // Add "omap_get_vals" operation
         const char* start_after2 = "matthieu";
         const char* filter_prefix2 = "p";
-        mobject_store_omap_iter_t iter4;
+        mobject_store_omap_iter_t iter4 = NULL;
         int prval4;
         // the following should return ["phil"], and  its associated value
         mobject_store_read_op_omap_get_vals(read_op, start_after2, filter_prefix2, 3, &iter4, &prval4);
         // Add "omap_get_vals_by_keys" operation
         const char* keys[] = {"matthieu", "robl"};
-        mobject_store_omap_iter_t iter5;
+        mobject_store_omap_iter_t iter5 = NULL;
         int prval5;
         mobject_store_read_op_omap_get_vals_by_keys(read_op, keys, 2, &iter5, &prval5);
 

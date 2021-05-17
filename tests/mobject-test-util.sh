@@ -27,7 +27,7 @@ function mobject_test_start_servers()
     rm -rf ${storage}
     bake-mkpool -s 50M /dev/shm/mobject.dat
 
-    run_to $maxtime mpirun -np $nservers bedrock tcp:// -c $SCRIPT_DIR/config.json -v trace &
+    run_to $maxtime mpirun -np $nservers bedrock na+sm -c $SCRIPT_DIR/config.json -v trace &
     if [ $? -ne 0 ]; then
         # TODO: this doesn't actually work; can't check return code of
         # something executing in background.  We have to rely on the

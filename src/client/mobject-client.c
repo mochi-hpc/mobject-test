@@ -24,10 +24,11 @@
 static int mobject_client_register(mobject_client_t  client,
                                    margo_instance_id mid)
 {
+    margo_set_log_level(mid, MARGO_LOG_TRACE);
     int       ret;
     hg_addr_t client_addr = HG_ADDR_NULL;
-    char      client_addr_str[128];
-    hg_size_t client_addr_len = 128;
+    char      client_addr_str[256];
+    hg_size_t client_addr_len = 256;
 
     ret = margo_addr_self(mid, &client_addr);
     if (ret != HG_SUCCESS) return -1;
@@ -84,10 +85,10 @@ int mobject_client_init(margo_instance_id mid, mobject_client_t* client)
 int mobject_client_finalize(mobject_client_t client)
 {
     if (client->num_provider_handles != 0) {
-        fprintf(stderr,
-                "[MOBJECT] Warning: %lu provider handles not released before "
-                "mobject_client_finalize was called\n",
-                client->num_provider_handles);
+        margo_warning(client->mid,
+                      "[mobject] %lu provider handles not released before "
+                      "mobject_client_finalize was called",
+                      client->num_provider_handles);
     }
     free(client->client_addr);
     free(client);
@@ -155,20 +156,22 @@ int mobject_write_op_operate(mobject_provider_handle_t mph,
 {
     hg_return_t ret;
 
-    write_op_in_t in;
+    mobject_client_t client = mph->client;
+    write_op_in_t    in;
     in.object_name = oid;
     in.pool_name   = pool_name;
     in.write_op    = write_op;
-    in.client_addr = mph->client->client_addr;
+    in.client_addr = client->client_addr;
     // TODO take mtime into account
 
-    prepare_write_op(mph->client->mid, write_op);
+    prepare_write_op(client->mid, write_op);
 
     hg_addr_t svr_addr = mph->addr;
     if (svr_addr == HG_ADDR_NULL) {
-        fprintf(stderr,
-                "[MOBJECT] NULL provider address passed to "
-                "mobject_write_op_operate\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: NULL provider address passed to "
+                    "mobject_write_op_operate",
+                    __func__, __LINE__);
         return -1;
     }
 
@@ -176,17 +179,19 @@ int mobject_write_op_operate(mobject_provider_handle_t mph,
     ret = margo_create(mph->client->mid, svr_addr,
                        mph->client->mobject_write_op_rpc_id, &h);
     if (ret != HG_SUCCESS) {
-        fprintf(
-            stderr,
-            "[MOBJECT] margo_create() failed in mobject_write_op_operate()\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: margo_create() failed in"
+                    " mobject_write_op_operate() (ret = %d)",
+                    __func__, __LINE__, ret);
         return -1;
     }
 
     ret = margo_provider_forward(mph->provider_id, h, &in);
     if (ret != HG_SUCCESS) {
-        fprintf(
-            stderr,
-            "[MOBJECT] margo_forward() failed in mobject_write_op_operate()\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: margo_forward() failed in"
+                    " mobject_write_op_operate() (ret = %d)",
+                    __func__, __LINE__, ret);
         margo_destroy(h);
         return -1;
     }
@@ -194,9 +199,10 @@ int mobject_write_op_operate(mobject_provider_handle_t mph,
     write_op_out_t resp;
     ret = margo_get_output(h, &resp);
     if (ret != HG_SUCCESS) {
-        fprintf(stderr,
-                "[MOBJECT] margo_get_output() failed in "
-                "mobject_write_op_operate()\n");
+        margo_error(client->mid,
+                    "[moject] %s:%d: margo_get_output() failed in"
+                    " mobject_write_op_operate() (ret = %d)",
+                    __func__, __LINE__, ret);
         margo_destroy(h);
         return -1;
     }
@@ -216,21 +222,22 @@ int mobject_read_op_operate(mobject_provider_handle_t mph,
 {
     hg_return_t ret;
 
-    read_op_in_t in;
+    mobject_client_t client = mph->client;
+    read_op_in_t     in;
     in.object_name = oid;
     in.pool_name   = pool_name;
     in.read_op     = read_op;
     in.client_addr = mph->client->client_addr;
-    ;
 
     prepare_read_op(mph->client->mid, read_op);
 
     hg_addr_t svr_addr = mph->addr;
 
     if (svr_addr == HG_ADDR_NULL) {
-        fprintf(stderr,
-                "[MOBJECT] NULL provider address passed to "
-                "mobject_write_op_operate\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: NULL provider address passed to "
+                    "mobject_read_op_operate()",
+                    __func__, __LINE__);
         return -1;
     }
 
@@ -238,17 +245,19 @@ int mobject_read_op_operate(mobject_provider_handle_t mph,
     ret = margo_create(mph->client->mid, svr_addr,
                        mph->client->mobject_read_op_rpc_id, &h);
     if (ret != HG_SUCCESS) {
-        fprintf(
-            stderr,
-            "[MOBJECT] margo_create() failed in mobject_read_op_operate()\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: margo_create() failed in"
+                    " mobject_read_op_operate() (ret = %d)",
+                    __func__, __LINE__);
         return -1;
     }
 
     ret = margo_provider_forward(mph->provider_id, h, &in);
     if (ret != HG_SUCCESS) {
-        fprintf(
-            stderr,
-            "[MOBJECT] margo_forward() failed in mobject_read_op_operate()\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: margo_forward() failed in"
+                    " mobject_read_op_operate() (ret = %d)",
+                    __func__, __LINE__, ret);
         margo_destroy(h);
         return -1;
     }
@@ -256,9 +265,10 @@ int mobject_read_op_operate(mobject_provider_handle_t mph,
     read_op_out_t resp;
     ret = margo_get_output(h, &resp);
     if (ret != HG_SUCCESS) {
-        fprintf(stderr,
-                "[MOBJECT] margo_get_output() failed in "
-                "mobject_read_op_operate()\n");
+        margo_error(client->mid,
+                    "[mobject] %s:%d: margo_get_output() failed in"
+                    " mobject_read_op_operate() (ret = %d)",
+                    __func__, __LINE__, ret);
         margo_destroy(h);
         return -1;
     }

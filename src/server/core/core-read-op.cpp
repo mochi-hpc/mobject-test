@@ -47,10 +47,11 @@ static void read_op_exec_omap_get_vals_by_keys(
 static void read_op_exec_end(void*);
 
 /* defined in core-write-op.cpp */
-extern uint64_t mobject_compute_object_size(sdskv_provider_handle_t ph,
-                                            sdskv_database_id_t     seg_db_id,
-                                            oid_t                   oid,
-                                            time_t                  ts);
+extern uint64_t mobject_compute_object_size(struct mobject_provider* provider,
+                                            sdskv_provider_handle_t  ph,
+                                            sdskv_database_id_t      seg_db_id,
+                                            oid_t                    oid,
+                                            time_t                   ts);
 
 static oid_t get_oid_from_name(sdskv_provider_handle_t ph,
                                sdskv_database_id_t     name_db_id,
@@ -114,7 +115,8 @@ void read_op_exec_stat(void* u, uint64_t* psize, time_t* pmtime, int* prval)
     }
 
     time_t ts = time(NULL);
-    *psize    = mobject_compute_object_size(sdskv_ph, seg_db_id, oid, ts);
+    *psize = mobject_compute_object_size(vargs->provider, sdskv_ph, seg_db_id,
+                                         oid, ts);
 
     LEAVING;
 }
