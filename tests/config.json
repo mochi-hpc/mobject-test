@@ -2,7 +2,7 @@
     "ssg" : [
         {
             "name" : "mobject",
-            "bootstrap" : "mpi",
+            "bootstrap" : "init",
             "group_file" : "mobject.ssg",
             "swim" : { "disabled" : true }
         }
