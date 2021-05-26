@@ -86,8 +86,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    server_addr_str = ssg_group_id_get_addr_str(server_gid, 0);
-    if (!server_addr_str) {
+    ret = ssg_group_id_get_addr_str(server_gid, 0, &server_addr_str);
+    if (ret != SSG_SUCCESS) {
         fprintf(stderr,
                 "Error: Unable to get mobject server group address string\n");
         ssg_finalize();
@@ -124,8 +124,8 @@ int main(int argc, char* argv[])
         return (-1);
     }
 
-    group_size = ssg_get_group_size(server_gid);
-    if (group_size == 0) {
+    ret = ssg_get_group_size(server_gid, &group_size);
+    if (ret != SSG_SUCCESS) {
         fprintf(stderr, "Error: Unable to determine SSG server group size\n");
         ssg_group_unobserve(server_gid);
         margo_finalize(mid);
@@ -135,8 +135,8 @@ int main(int argc, char* argv[])
     }
 
     for (i = 0; i < group_size; i++) {
-        server_id   = ssg_get_group_member_id_from_rank(server_gid, i);
-        server_addr = ssg_get_group_member_addr(server_gid, server_id);
+        ssg_get_group_member_id_from_rank(server_gid, i, &server_id);
+        ssg_get_group_member_addr(server_gid, server_id, &server_addr);
         if (server_addr == HG_ADDR_NULL) {
             fprintf(stderr, "Error: NULL address given for group member %d\n",
                     i);
