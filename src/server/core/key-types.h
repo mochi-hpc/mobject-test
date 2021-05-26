@@ -1,6 +1,6 @@
 /*
  * (C) 2018 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __CORE_KEY_TYPES_H
@@ -11,7 +11,8 @@
 
 typedef uint64_t oid_t;
 
-typedef enum seg_type_t {
+typedef enum seg_type_t
+{
     ZERO         = 0,
     BAKE_REGION  = 1,
     SMALL_REGION = 2,
@@ -34,18 +35,18 @@ typedef enum seg_type_t {
    of an object. This portion if [start_index, +infinity[. */
 
 typedef struct segment_key_t {
-    oid_t oid;
+    oid_t  oid;
     time_t timestamp;
-    //double timestamp;
+    // double timestamp;
     uint32_t seq_id;
-    uint32_t type; /* seg_type */
+    uint32_t type;        /* seg_type */
     uint64_t start_index; // first index, included
-    uint64_t end_index;  // end index is not included
+    uint64_t end_index;   // end index is not included
 } segment_key_t;
 
 typedef struct omap_key_t {
     oid_t oid;
-    char key[1];
+    char  key[1];
 } omap_key_t;
 
 #define MAX_OMAP_KEY_SIZE 128

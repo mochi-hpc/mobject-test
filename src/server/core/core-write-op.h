@@ -1,6 +1,6 @@
 /*
  * (C) 2018 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __CORE_WRITE_OP_H
@@ -14,7 +14,8 @@
 extern "C" {
 #endif
 
-void core_write_op(mobject_store_write_op_t write_op, server_visitor_args_t vargs);
+void core_write_op(mobject_store_write_op_t write_op,
+                   server_visitor_args_t    vargs);
 
 #ifdef __cplusplus
 }

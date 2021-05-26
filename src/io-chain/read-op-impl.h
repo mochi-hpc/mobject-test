@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __MOBJECT_READ_OP_H
@@ -20,13 +20,13 @@
  * It can therefore be sent to a server and processed.
  */
 struct mobject_store_read_op {
-	int              ready;
-	hg_bulk_t        bulk_handle;
-	size_t           num_actions;
-	rd_action_base_t actions;
+    int              ready;
+    hg_bulk_t        bulk_handle;
+    size_t           num_actions;
+    rd_action_base_t actions;
 };
 
 mobject_store_read_op_t create_read_op(void);
-void release_read_op(mobject_store_read_op_t read_op);
+void                    release_read_op(mobject_store_read_op_t read_op);
 
 #endif

@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([mobject], [0.4], [ssio-services@lists.mcs.anl.gov])
+AC_INIT([mobject], [0.5], [ssio-services@lists.mcs.anl.gov])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
@@ -47,14 +47,6 @@ else
     AC_SUBST([MKTEMP], ["$MKTEMP"])
 fi
 
-# check for MPI -- currently required for SSG on server daemons
-AC_MSG_CHECKING([If MPI programs can be compiled])
-AC_LINK_IFELSE(
-    [AC_LANG_PROGRAM([[#include<mpi.h>]], [[MPI_Init(0,0);]])],
-    [AC_MSG_RESULT([yes])],
-    [AC_MSG_RESULT([no])]
-    [AC_MSG_ERROR([MPI compiler support currently required!])])
-
 dnl seems like this should be a function but my first stab at m4 exploded
 dnl mightily...
 
@@ -63,18 +55,6 @@ PKG_CHECK_MODULES([MARGO],[margo],[],
 LIBS="$MARGO_LIBS $LIBS"
 CPPFLAGS="$MARGO_CFLAGS $CPPFLAGS"
 CFLAGS="$MARGO_CFLAGS $CFLAGS"
-
-PKG_CHECK_MODULES([SSG],[ssg],[],
-	AC_MSG_ERROR([Could not find working ssg installation!]) )
-LIBS="$SSG_LIBS $LIBS"
-CPPFLAGS="$SSG_CFLAGS $CPPFLAGS"
-CFLAGS="$SSG_CFLAGS $CFLAGS"
-
-PKG_CHECK_MODULES([ARGOBOTS],[argobots],[],
-	AC_MSG_ERROR([Could not find working argobots installation!]) )
-LIBS="$ARGOBOTS_LIBS $LIBS"
-CPPFLAGS="$ARGOBOTS_CFLAGS $CPPFLAGS"
-CFLAGS="$ARGOBOTS_CFLAGS $CFLAGS"
 
 PKG_CHECK_MODULES([SDSKEYVALSERVER],[sdskv-server],[],
 	AC_MSG_ERROR([Could not find working sds-keyval server installation!]) )
@@ -87,12 +67,6 @@ PKG_CHECK_MODULES([SDSKEYVALCLIENT],[sdskv-client],[],
 SERVER_LIBS="$SDSKEYVALCLIENT_LIBS $SERVER_LIBS"
 SERVER_CPPFLAGS="$SDSKEYVALCLIENT_CFLAGS $SERVER_CPPFLAGS"
 SERVER_CFLAGS="$SDSKEYVALCLIENT_CFLAGS $SERVER_CFLAGS"
-
-PKG_CHECK_MODULES([PMEM],[libpmemobj],[],
-	AC_MSG_ERROR([Could not find working libpmemobj installation!]) )
-SERVER_LIBS="$PMEM_LIBS $SERVER_LIBS"
-SERVER_CPPFLAGS="$PMEM_CFLAGS $SERVER_CPPFLAGS"
-SERVER_CFLAGS="$PMEM_CFLAGS $SERVER_CFLAGS"
 
 PKG_CHECK_MODULES([BAKESERVER],[bake-server],[],
 	AC_MSG_ERROR([Could not find working BAKE server installation!]) )
@@ -111,14 +85,15 @@ PKG_CHECK_MODULES([CHPLACEMENT], [ch-placement], [],
 CLIENT_CFLAGS="$CHPLACEMENT_CFLAGS $CLIENT_CFLAGS"
 CLIENT_LIBS="$CHPLACEMENT_LIBS $CLIENT_LIBS"
 
-# check that SSG was compiled with MPI support
-AC_CHECK_LIB([ssg], [ssg_group_create_mpi],
-    [],
-    [AC_MSG_ERROR([SSG must be built with MPI support!])])
+PKG_CHECK_MODULES([SSG],[ssg],[],
+	AC_MSG_ERROR([Could not find working ssg installation!]) )
+CLIENT_LIBS="$SSG_LIBS $CLIENT_LIBS"
+CLIENT_CPPFLAGS="$SSG_CFLAGS $CLIENT_CPPFLAGS"
+CLIENT_CFLAGS="$SSG_CFLAGS $CLIENT_CFLAGS"
 
 # check for RADOS
 AC_ARG_WITH([rados],
-    AS_HELP_STRING([--with_rados], [Additionally build tests against librados (default is no)]),
+    AS_HELP_STRING([--with-rados], [Additionally build tests against librados (default is no)]),
     [], [])
 if test x"$with_rados" == "xyes" ; then
     # check for RADOS headers and libraries
@@ -134,6 +109,29 @@ fi
 
 # both found, set output to additionally build tests against RADOS
 AM_CONDITIONAL(HAVE_RADOS, test x"$with_rados" == "xyes")
+
+AC_ARG_ENABLE(bedrock,
+              [AS_HELP_STRING([--enable-bedrock],[Enable Bedrock (Mochi loader) support @<:@default=no@:>@])],
+              [case "${enableval}" in
+                yes) enable_bedrock="yes" ;;
+                no) enable_bedrock="no" ;;
+                *) AC_MSG_ERROR(bad value ${enableval} for --enable-bedrock) ;;
+               esac],
+              [enable_bedrock="no"]
+)
+AM_CONDITIONAL(ENABLE_BEDROCK, test x$enable_bedrock = xyes)
+if test "$enable_bedrock" = "yes" ; then
+        AC_DEFINE(USE_BEDROCK, 1, [Bedrock support enabled.])
+        ENABLE_BEDROCK=1
+        PKG_CHECK_MODULES([BEDROCK],[bedrock-server],[],
+              AC_MSG_ERROR([Bedrock requested, but could not find bedrock]))
+else
+        ENABLE_BEDROCK=0
+fi
+AM_CONDITIONAL(BUILD_BEDROCK, test $ENABLE_BEDROCK -eq 1)
+AC_SUBST(ENABLE_BEDROCK)
+AC_SUBST(BEDROCK_LIBS)
+AC_SUBST(BEDROCK_CFLAGS)
 
 AC_SUBST(SERVER_LIBS)
 AC_SUBST(CLIENT_LIBS)

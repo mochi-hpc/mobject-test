@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #ifndef __MOBJECT_CLIENT_IMPL_H
@@ -34,7 +34,8 @@ struct mobject_provider_handle {
     uint64_t         refcount;
 };
 
-typedef enum mobject_op_req_type {
+typedef enum mobject_op_req_type
+{
     MOBJECT_AIO_WRITE,
     MOBJECT_AIO_READ
 } mobject_op_req_type;
@@ -44,9 +45,9 @@ struct mobject_request {
     union {
         mobject_store_read_op_t  read_op;
         mobject_store_write_op_t write_op;
-    } op; // operation that initiated the request
+    } op;                  // operation that initiated the request
     margo_request request; // margo request to wait on
-    hg_handle_t handle;    // handle of the RPC sent for this operation
+    hg_handle_t   handle;  // handle of the RPC sent for this operation
 };
 
 #endif

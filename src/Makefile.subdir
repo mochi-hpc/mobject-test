@@ -23,6 +23,7 @@ noinst_HEADERS += \
   src/rpc-types/write-op.h \
   src/server/printer/print-read-op.h\
   src/server/printer/print-write-op.h \
+  src/server/mobject-provider.h \
   src/util/buffer-union.h \
   src/util/log.h \
   src/util/utlist.h
@@ -44,8 +45,7 @@ src_io_chain_libio_chain_la_SOURCES = src/io-chain/prepare-read-op.c \
 			    src/io-chain/proc-read-responses.c \
 			    src/io-chain/proc-write-actions.c
 
-
-src_client_libmobject_store_la_SOURCES = \
+lib_libmobject_client_la_SOURCES = \
   src/client/mobject-client.c \
   src/client/cluster.c \
   src/client/read-op.c \
@@ -54,40 +54,42 @@ src_client_libmobject_store_la_SOURCES = \
   src/client/aio/completion.c \
   src/client/aio/aio-cluster-operate.c \
   src/client/aio/aio-operate.c
-src_client_libmobject_store_la_CPPFLAGS = ${AM_CPPFLAGS} ${CLIENT_CPPFLAGS}
-src_client_libmobject_store_la_CFLAGS   = ${AM_CFLAGS} ${CLIENT_CFLAGS}
-src_client_libmobject_store_la_LIBADD = src/omap-iter/libomap-iter.la \
+lib_libmobject_client_la_CPPFLAGS = ${AM_CPPFLAGS} ${CLIENT_CPPFLAGS}
+lib_libmobject_client_la_CFLAGS   = ${AM_CFLAGS} ${CLIENT_CFLAGS}
+lib_libmobject_client_la_LIBADD = src/omap-iter/libomap-iter.la \
 				 src/io-chain/libio-chain.la ${CLIENT_LIBS}
 
-src_server_libmobject_server_la_SOURCES = \
+lib_libmobject_server_la_SOURCES = \
   src/server/mobject-server.c \
-  src/server/mobject-daemon-helper.c \
   src/server/fake/fake-write-op.cpp \
   src/server/fake/fake-read-op.cpp \
   src/server/fake/fake-db.cpp \
   src/server/core/core-write-op.cpp \
   src/server/core/core-read-op.cpp \
   src/server/printer/print-write-op.c \
-  src/server/printer/print-read-op.c 
-src_server_libmobject_server_la_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
-src_server_libmobject_server_la_CFLAGS   = ${AM_CFLAGS} ${SERVER_CFLAGS}
-src_server_libmobject_server_la_LIBADD = src/omap-iter/libomap-iter.la \
+  src/server/printer/print-read-op.c
+lib_libmobject_server_la_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
+lib_libmobject_server_la_CFLAGS   = ${AM_CFLAGS} ${SERVER_CFLAGS}
+lib_libmobject_server_la_LIBADD = src/omap-iter/libomap-iter.la \
 				  src/io-chain/libio-chain.la ${SERVER_LIBS}
 
-src_server_mobject_server_daemon_SOURCES = \
-  src/server/mobject-server-daemon.c
-src_server_mobject_server_daemon_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
-src_server_mobject_server_daemon_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
-src_server_mobject_server_daemon_LDADD = \
-  src/server/libmobject-server.la ${SERVER_LIBS}
+lib_libmobject_comparators_la_SOURCES = \
+  src/server/mobject-comparators.c
+lib_libmobject_comparators_la_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
+lib_libmobject_comparators_la_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
 
-src_server_mobject_server_ctl_SOURCES = \
+if BUILD_BEDROCK
+lib_libmobject_bedrock_la_SOURCES = \
+  src/bedrock/mobject-bedrock.c
+lib_libmobject_bedrock_la_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
+lib_libmobject_bedrock_la_CFLAGS = ${AM_CFLAGS} ${BEDROCK_CFLAGS} ${SERVER_CFLAGS}
+lib_libmobject_bedrock_la_LIBADD = lib/libmobject-server.la \
+				   lib/libmobject-client.la \
+				   ${BEDROCK_LIBS}
+endif
+
+bin_mobject_server_ctl_SOURCES = \
   src/server/mobject-server-ctl.c
-src_server_mobject_server_ctl_CPPFLAGS = ${AM_CPPFLAGS} ${SERVER_CPPFLAGS}
-src_server_mobject_server_ctl_CFLAGS = ${AM_CFLAGS} ${SERVER_CFLAGS}
-src_server_mobject_server_ctl_LDADD = ${SERVER_LIBS}
-
-bin_PROGRAMS += \
-  src/server/mobject-server-daemon \
-  src/server/mobject-server-ctl
-
+bin_mobject_server_ctl_CPPFLAGS = ${AM_CPPFLAGS} ${CLIENT_CPPFLAGS}
+bin_mobject_server_ctl_CFLAGS = ${AM_CFLAGS} ${CLIENT_CFLAGS}
+bin_mobject_server_ctl_LDADD = ${CLIENT_LIBS}

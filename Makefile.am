@@ -12,7 +12,7 @@ TESTS_ENVIRONMENT=
 EXTRA_DIST = prepare.sh
 
 AM_CPPFLAGS = -I$(top_srcdir)/include
-AM_CFLAGS   = 
+AM_CFLAGS   =
 
 SERVER_LIBS = @SERVER_LIBS@
 CLIENT_LIBS = @CLIENT_LIBS@
@@ -22,8 +22,13 @@ SERVER_CFLAGS = @SERVER_CFLAGS@
 CLIENT_CFLAGS = @CLIENT_CFLAGS@
 
 lib_LTLIBRARIES = \
-  src/client/libmobject-store.la \
-  src/server/libmobject-server.la
+  lib/libmobject-client.la \
+  lib/libmobject-server.la \
+  lib/libmobject-comparators.la \
+  lib/libmobject-bedrock.la
+
+bin_PROGRAMS += \
+  bin/mobject-server-ctl
 
 include_HEADERS = \
   include/libmobject-store.h \

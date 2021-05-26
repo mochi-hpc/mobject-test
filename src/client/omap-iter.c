@@ -1,6 +1,6 @@
 /*
  * (C) 2017 The University of Chicago
- * 
+ *
  * See COPYRIGHT in top-level directory.
  */
 #include <stdlib.h>
@@ -9,22 +9,22 @@
 #include "src/omap-iter/omap-iter-impl.h"
 
 int mobject_store_omap_get_next(mobject_store_omap_iter_t iter,
-                                char **key,
-                                char **val,
-                                size_t *len)
+                                char**                    key,
+                                char**                    val,
+                                size_t*                   len)
 {
-    if(iter->current == NULL) {
+    if (iter->current == NULL) {
         *key = NULL;
         *val = NULL;
         *len = 0;
         return -1;
     }
 
-    *key = iter->current->key;
-    *val = iter->current->value;
-    *len = iter->current->value_size;
+    *key          = iter->current->key;
+    *val          = iter->current->value;
+    *len          = iter->current->value_size;
     iter->current = iter->current->next;
-    if(iter->current == iter->head) iter->current = NULL;
+    if (iter->current == iter->head) iter->current = NULL;
 
     return 0;
 }
