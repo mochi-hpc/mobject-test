@@ -113,8 +113,8 @@ int mobject_store_connect(mobject_store_t cluster)
     /* figure out protocol to connect with using address information
      * associated with the SSG group ID
      */
-    svr_addr_str = ssg_group_id_get_addr_str(cluster_handle->gid, 0);
-    if (!svr_addr_str) {
+    ret = ssg_group_id_get_addr_str(cluster_handle->gid, 0, &svr_addr_str);
+    if (ret != SSG_SUCCESS) {
         margo_error(NULL, "Unable to obtain cluster group server address");
         ssg_finalize();
         free(cluster_handle);
@@ -154,8 +154,9 @@ int mobject_store_connect(mobject_store_t cluster)
     cluster_handle->connected = 1;
 
     // get number of servers
-    int gsize = ssg_get_group_size(cluster_handle->gid);
-    if (gsize == 0) {
+    int gsize;
+    ret  = ssg_get_group_size(cluster_handle->gid, &gsize);
+    if (ret != SSG_SUCCESS) {
         margo_error(mid, "Unable to get SSG group size");
         ssg_group_unobserve(cluster_handle->gid);
         margo_finalize(cluster_handle->mid);
@@ -354,9 +355,10 @@ int mobject_store_write_op_operate(mobject_store_write_op_t write_op,
     unsigned long             server_rank;
     ch_placement_find_closest(io->cluster->ch_instance, oid_hash, 1,
                               &server_rank);
-    ssg_member_id_t svr_id
-        = ssg_get_group_member_id_from_rank(io->cluster->gid, server_rank);
-    hg_addr_t svr_addr = ssg_get_group_member_addr(io->cluster->gid, svr_id);
+    ssg_member_id_t svr_id;
+    ssg_get_group_member_id_from_rank(io->cluster->gid, server_rank, &svr_id);
+    hg_addr_t svr_addr;
+    ssg_get_group_member_addr(io->cluster->gid, svr_id, &svr_addr);
 
     // TODO for now multiplex id is hard-coded as 1
     // XXX multiple providers may be in the same node (with distinct mplex ids)
@@ -439,9 +441,10 @@ int mobject_store_read_op_operate(mobject_store_read_op_t read_op,
     unsigned long             server_rank;
     ch_placement_find_closest(ioctx->cluster->ch_instance, oid_hash, 1,
                               &server_rank);
-    ssg_member_id_t svr_id
-        = ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank);
-    hg_addr_t svr_addr = ssg_get_group_member_addr(ioctx->cluster->gid, svr_id);
+    ssg_member_id_t svr_id;
+    ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank, &svr_id);
+    hg_addr_t svr_addr;
+    ssg_get_group_member_addr(ioctx->cluster->gid, svr_id, &svr_addr);
 
     // XXX multiple providers may be in the same node (with distinct mplex ids)
     // TODO for now multiplex id is hard-coded as 1
@@ -462,8 +465,8 @@ mobject_store_shutdown_servers(struct mobject_store_handle* cluster_handle)
     ssg_member_id_t svr_id;
 
     /* get the address of the first server */
-    svr_id   = ssg_get_group_member_id_from_rank(cluster_handle->gid, 0);
-    svr_addr = ssg_get_group_member_addr(cluster_handle->gid, svr_id);
+    ssg_get_group_member_id_from_rank(cluster_handle->gid, 0, &svr_id);
+    ssg_get_group_member_addr(cluster_handle->gid, svr_id, &svr_addr);
     if (svr_addr == HG_ADDR_NULL) {
         margo_error(cluster_handle->mid,
                     "Unable to obtain address for mobject server");
