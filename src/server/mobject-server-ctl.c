@@ -3,7 +3,7 @@
  *
  * See COPYRIGHT in top-level directory.
  */
-
+#include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <margo.h>
@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    ret = ssg_group_id_get_addr_str(server_gid, 0, &server_addr_str);
+    ret = ssg_get_group_member_addr_str(server_gid, 0, &server_addr_str);
     if (ret != SSG_SUCCESS) {
         fprintf(stderr,
                 "Error: Unable to get mobject server group address string\n");
@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
         = MARGO_REGISTER(mid, "mobject_server_stat", void, void, NULL);
 
     /* observe server group to get all server addresses */
-    ret = ssg_group_observe(mid, server_gid);
+    ret = ssg_group_refresh(mid, server_gid);
     if (ret != SSG_SUCCESS) {
         fprintf(stderr, "Error: Unable to observe SSG server group\n");
         margo_finalize(mid);
@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     ret = ssg_get_group_size(server_gid, &group_size);
     if (ret != SSG_SUCCESS) {
         fprintf(stderr, "Error: Unable to determine SSG server group size\n");
-        ssg_group_unobserve(server_gid);
+        ssg_group_destroy(server_gid);
         margo_finalize(mid);
         ssg_finalize();
         free(server_addr_str);
@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
         if (server_addr == HG_ADDR_NULL) {
             fprintf(stderr, "Error: NULL address given for group member %d\n",
                     i);
-            ssg_group_unobserve(server_gid);
+            ssg_group_destroy(server_gid);
             margo_finalize(mid);
             ssg_finalize();
             free(server_addr_str);
@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
         ret = send_op_ptr(mid, server_addr);
     }
 
-    ssg_group_unobserve(server_gid);
+    ssg_group_destroy(server_gid);
     margo_finalize(mid);
     ssg_finalize();
     free(server_addr_str);

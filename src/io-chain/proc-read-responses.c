@@ -3,6 +3,7 @@
  *
  * See COPYRIGHT in top-level directory.
  */
+#include <stdlib.h>
 #include <mercury_proc.h>
 #include "src/io-chain/proc-read-responses.h"
 #include "src/io-chain/read-responses.h"

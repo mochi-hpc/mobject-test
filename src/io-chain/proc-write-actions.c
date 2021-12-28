@@ -8,6 +8,7 @@
 #include "src/io-chain/write-op-impl.h"
 #include "src/util/utlist.h"
 #include "src/util/log.h"
+#include <stdlib.h>
 
 /**
  * This file contains the main hg_proc_mobject_store_write_op_t

@@ -7,6 +7,7 @@
 #include "src/io-chain/read-op-impl.h"
 #include "src/util/utlist.h"
 #include "src/util/log.h"
+#include <stdlib.h>
 
 static void prepare_read(uint64_t*        cur_offset,
                          rd_action_read_t action,

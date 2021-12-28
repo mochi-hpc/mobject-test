@@ -52,6 +52,25 @@ int mobject_store_create(mobject_store_t* cluster, const char* const id)
     }
     margo_set_global_log_level(log_level);
 
+    /* use env variable to determine how to connect to the cluster */
+    /* NOTE: this is the _only_ method for specifying a cluster for now... */
+    cluster_file = getenv(MOBJECT_CLUSTER_FILE_ENV);
+    if (!cluster_file) {
+        margo_error(NULL, "%s env variable must point to mobject cluster file",
+                    MOBJECT_CLUSTER_FILE_ENV);
+        ssg_finalize();
+        free(cluster_handle);
+        return -1;
+    }
+
+    ret = margo_set_environment(NULL);
+    if (ret != SSG_SUCCESS) {
+        margo_error(NULL, "Unable to initialize Margo environment");
+        return -1;
+    }
+
+    ABT_init(0, NULL);
+
     /* initialize ssg */
     /* XXX: we need to think about how to do this once per-client... clients
      * could connect to mult. clusters */
@@ -67,17 +86,6 @@ int mobject_store_create(mobject_store_t* cluster, const char* const id)
     if (!cluster_handle) {
         ssg_finalize();
         margo_error(NULL, "Unable to allocate memory for cluster handle");
-        return -1;
-    }
-
-    /* use env variable to determine how to connect to the cluster */
-    /* NOTE: this is the _only_ method for specifying a cluster for now... */
-    cluster_file = getenv(MOBJECT_CLUSTER_FILE_ENV);
-    if (!cluster_file) {
-        margo_error(NULL, "%s env variable must point to mobject cluster file",
-                    MOBJECT_CLUSTER_FILE_ENV);
-        ssg_finalize();
-        free(cluster_handle);
         return -1;
     }
 
@@ -113,7 +121,7 @@ int mobject_store_connect(mobject_store_t cluster)
     /* figure out protocol to connect with using address information
      * associated with the SSG group ID
      */
-    ret = ssg_group_id_get_addr_str(cluster_handle->gid, 0, &svr_addr_str);
+    ret = ssg_get_group_member_addr_str(cluster_handle->gid, 0, &svr_addr_str);
     if (ret != SSG_SUCCESS) {
         margo_error(NULL, "Unable to obtain cluster group server address");
         ssg_finalize();
@@ -142,7 +150,7 @@ int mobject_store_connect(mobject_store_t cluster)
     margo_set_log_level(mid, log_level);
 
     /* observe the cluster group */
-    ret = ssg_group_observe(mid, cluster_handle->gid);
+    ret = ssg_group_refresh(mid, cluster_handle->gid);
     if (ret != SSG_SUCCESS) {
         margo_error(mid, "Unable to observe the mobject cluster group");
         margo_finalize(cluster_handle->mid);
@@ -155,10 +163,10 @@ int mobject_store_connect(mobject_store_t cluster)
 
     // get number of servers
     int gsize;
-    ret  = ssg_get_group_size(cluster_handle->gid, &gsize);
+    ret = ssg_get_group_size(cluster_handle->gid, &gsize);
     if (ret != SSG_SUCCESS) {
         margo_error(mid, "Unable to get SSG group size");
-        ssg_group_unobserve(cluster_handle->gid);
+        ssg_group_destroy(cluster_handle->gid);
         margo_finalize(cluster_handle->mid);
         ssg_finalize();
         free(svr_addr_str);
@@ -171,7 +179,7 @@ int mobject_store_connect(mobject_store_t cluster)
         = ch_placement_initialize("static_modulo", gsize, 0, 0);
     if (!cluster_handle->ch_instance) {
         margo_error(mid, "Unable to initialize ch-placement instance");
-        ssg_group_unobserve(cluster_handle->gid);
+        ssg_group_destroy(cluster_handle->gid);
         margo_finalize(cluster_handle->mid);
         ssg_finalize();
         free(svr_addr_str);
@@ -183,7 +191,7 @@ int mobject_store_connect(mobject_store_t cluster)
     ret = mobject_client_init(mid, &(cluster_handle->mobject_clt));
     if (ret != 0) {
         margo_error(mid, "Unable to create a mobject client");
-        ssg_group_unobserve(cluster_handle->gid);
+        ssg_group_destroy(cluster_handle->gid);
         margo_finalize(cluster_handle->mid);
         ssg_finalize();
         free(svr_addr_str);
@@ -219,7 +227,7 @@ void mobject_store_shutdown(mobject_store_t cluster)
     }
 
     mobject_client_finalize(cluster_handle->mobject_clt);
-    ssg_group_unobserve(cluster_handle->gid);
+    ssg_group_destroy(cluster_handle->gid);
     margo_finalize(cluster_handle->mid);
     ssg_finalize();
     ch_placement_finalize(cluster_handle->ch_instance);
@@ -442,7 +450,8 @@ int mobject_store_read_op_operate(mobject_store_read_op_t read_op,
     ch_placement_find_closest(ioctx->cluster->ch_instance, oid_hash, 1,
                               &server_rank);
     ssg_member_id_t svr_id;
-    ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank, &svr_id);
+    ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank,
+                                      &svr_id);
     hg_addr_t svr_addr;
     ssg_get_group_member_addr(ioctx->cluster->gid, svr_id, &svr_addr);
 
