@@ -7,6 +7,7 @@
 //#define FAKE_CPP_SERVER
 
 #include <assert.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <abt.h>
 #include <margo.h>

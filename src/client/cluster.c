@@ -31,8 +31,6 @@ mobject_store_shutdown_servers(struct mobject_store_handle* cluster_handle);
 int mobject_store_create(mobject_store_t* cluster, const char* const id)
 {
     struct mobject_store_handle* cluster_handle;
-    char*                        cluster_file;
-    int                          num_group_addrs = SSG_ALL_MEMBERS;
     int                          ret;
 
     (void)id; /* XXX: id unused in mobject */
@@ -52,42 +50,11 @@ int mobject_store_create(mobject_store_t* cluster, const char* const id)
     }
     margo_set_global_log_level(log_level);
 
-    /* initialize ssg */
-    /* XXX: we need to think about how to do this once per-client... clients
-     * could connect to mult. clusters */
-    ret = ssg_init();
-    if (ret != SSG_SUCCESS) {
-        margo_error(NULL, "Unable to initialize SSG");
-        return -1;
-    }
-
     /* allocate a new cluster handle and set some fields */
     cluster_handle
         = (struct mobject_store_handle*)calloc(1, sizeof(*cluster_handle));
     if (!cluster_handle) {
-        ssg_finalize();
         margo_error(NULL, "Unable to allocate memory for cluster handle");
-        return -1;
-    }
-
-    /* use env variable to determine how to connect to the cluster */
-    /* NOTE: this is the _only_ method for specifying a cluster for now... */
-    cluster_file = getenv(MOBJECT_CLUSTER_FILE_ENV);
-    if (!cluster_file) {
-        margo_error(NULL, "%s env variable must point to mobject cluster file",
-                    MOBJECT_CLUSTER_FILE_ENV);
-        ssg_finalize();
-        free(cluster_handle);
-        return -1;
-    }
-
-    ret = ssg_group_id_load(cluster_file, &num_group_addrs,
-                            &cluster_handle->gid);
-    if (ret != 0) {
-        margo_error(NULL, "Unable to load mobject cluster info from file %s",
-                    cluster_file);
-        ssg_finalize();
-        free(cluster_handle);
         return -1;
     }
 
@@ -100,6 +67,7 @@ int mobject_store_create(mobject_store_t* cluster, const char* const id)
 int mobject_store_connect(mobject_store_t cluster)
 {
     struct mobject_store_handle* cluster_handle;
+    char*                        cluster_file;
     char*                        svr_addr_str;
     char                         proto[24] = {0};
     int                          i;
@@ -110,59 +78,71 @@ int mobject_store_connect(mobject_store_t cluster)
 
     if (cluster_handle->connected) return 0;
 
-    /* figure out protocol to connect with using address information
-     * associated with the SSG group ID
-     */
-    ret = ssg_group_id_get_addr_str(cluster_handle->gid, 0, &svr_addr_str);
-    if (ret != SSG_SUCCESS) {
-        margo_error(NULL, "Unable to obtain cluster group server address");
-        ssg_finalize();
-        free(cluster_handle);
+    /* use env variable to determine how to connect to the cluster */
+    /* NOTE: this is the _only_ method for specifying a cluster for now... */
+    cluster_file = getenv(MOBJECT_CLUSTER_FILE_ENV);
+    if (!cluster_file) {
+        margo_error(NULL, "%s env variable must point to mobject cluster file",
+                    MOBJECT_CLUSTER_FILE_ENV);
         return -1;
     }
-    margo_trace(NULL, "Address %s extracted from SSG file", svr_addr_str);
 
-    /* we only need to get the proto portion of the address to initialize */
-    for (i = 0; i < 24 && svr_addr_str[i] != '\0' && svr_addr_str[i] != ':';
-         i++)
-        proto[i] = svr_addr_str[i];
-    margo_trace(NULL, "Deduced protocol to be %s", proto);
+    /* get transport from cluster file */
+    ret = ssg_get_group_transport_from_file(cluster_file, proto, 24);
+    if (ret != SSG_SUCCESS) {
+        margo_error(NULL, "Could not get transport from file %s",
+                    MOBJECT_CLUSTER_FILE_ENV);
+        return -1;
+    }
 
     /* intialize margo */
     /* XXX: probably want to expose some way of tweaking threading parameters */
     margo_instance_id mid = margo_init(proto, MARGO_SERVER_MODE, 0, -1);
     if (mid == MARGO_INSTANCE_NULL) {
         margo_error(NULL, "Unable to initialize margo");
-        ssg_finalize();
-        free(svr_addr_str);
-        free(cluster_handle);
         return -1;
     }
     cluster_handle->mid = mid;
     margo_set_log_level(mid, log_level);
 
-    /* observe the cluster group */
-    ret = ssg_group_observe(mid, cluster_handle->gid);
+    /* initialize ssg */
+    ret = ssg_init();
     if (ret != SSG_SUCCESS) {
-        margo_error(mid, "Unable to observe the mobject cluster group");
-        margo_finalize(cluster_handle->mid);
-        ssg_finalize();
-        free(svr_addr_str);
-        free(cluster_handle);
+        margo_error(mid, "Unable to initialize SSG");
+        margo_finalize(mid);
         return -1;
     }
+
+    int num_group_addrs = SSG_ALL_MEMBERS;
+    ret                 = ssg_group_id_load(cluster_file, &num_group_addrs,
+                            &cluster_handle->gid);
+    if (ret != 0) {
+        margo_error(mid, "Unable to load mobject cluster info from file %s",
+                    cluster_file);
+        ssg_finalize();
+        margo_finalize(mid);
+        return -1;
+    }
+
+    /* refresh the cluster group */
+    ret = ssg_group_refresh(mid, cluster_handle->gid);
+    if (ret != SSG_SUCCESS) {
+        margo_error(mid, "Unable to refresh the mobject cluster group");
+        ssg_finalize();
+        margo_finalize(cluster_handle->mid);
+        return -1;
+    }
+
     cluster_handle->connected = 1;
 
     // get number of servers
     int gsize;
-    ret  = ssg_get_group_size(cluster_handle->gid, &gsize);
+    ret = ssg_get_group_size(cluster_handle->gid, &gsize);
     if (ret != SSG_SUCCESS) {
         margo_error(mid, "Unable to get SSG group size");
-        ssg_group_unobserve(cluster_handle->gid);
-        margo_finalize(cluster_handle->mid);
+        ssg_group_destroy(cluster_handle->gid);
         ssg_finalize();
-        free(svr_addr_str);
-        free(cluster_handle);
+        margo_finalize(cluster_handle->mid);
         return -1;
     }
 
@@ -171,11 +151,9 @@ int mobject_store_connect(mobject_store_t cluster)
         = ch_placement_initialize("static_modulo", gsize, 0, 0);
     if (!cluster_handle->ch_instance) {
         margo_error(mid, "Unable to initialize ch-placement instance");
-        ssg_group_unobserve(cluster_handle->gid);
-        margo_finalize(cluster_handle->mid);
+        ssg_group_destroy(cluster_handle->gid);
         ssg_finalize();
-        free(svr_addr_str);
-        free(cluster_handle);
+        margo_finalize(cluster_handle->mid);
         return -1;
     }
 
@@ -183,15 +161,11 @@ int mobject_store_connect(mobject_store_t cluster)
     ret = mobject_client_init(mid, &(cluster_handle->mobject_clt));
     if (ret != 0) {
         margo_error(mid, "Unable to create a mobject client");
-        ssg_group_unobserve(cluster_handle->gid);
-        margo_finalize(cluster_handle->mid);
+        ssg_group_destroy(cluster_handle->gid);
         ssg_finalize();
-        free(svr_addr_str);
-        free(cluster_handle);
+        margo_finalize(cluster_handle->mid);
         return -1;
     }
-
-    free(svr_addr_str);
 
     return 0;
 }
@@ -219,9 +193,9 @@ void mobject_store_shutdown(mobject_store_t cluster)
     }
 
     mobject_client_finalize(cluster_handle->mobject_clt);
-    ssg_group_unobserve(cluster_handle->gid);
-    margo_finalize(cluster_handle->mid);
+    ssg_group_destroy(cluster_handle->gid);
     ssg_finalize();
+    margo_finalize(cluster_handle->mid);
     ch_placement_finalize(cluster_handle->ch_instance);
     free(cluster_handle);
 
@@ -442,7 +416,8 @@ int mobject_store_read_op_operate(mobject_store_read_op_t read_op,
     ch_placement_find_closest(ioctx->cluster->ch_instance, oid_hash, 1,
                               &server_rank);
     ssg_member_id_t svr_id;
-    ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank, &svr_id);
+    ssg_get_group_member_id_from_rank(ioctx->cluster->gid, server_rank,
+                                      &svr_id);
     hg_addr_t svr_addr;
     ssg_get_group_member_addr(ioctx->cluster->gid, svr_id, &svr_addr);
 

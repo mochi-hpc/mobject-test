@@ -8,6 +8,7 @@
 #include "src/io-chain/write-op-impl.h"
 #include "src/util/utlist.h"
 #include "src/util/log.h"
+#include <stdlib.h>
 
 static void execute_write_op_visitor_on_create(write_op_visitor_t visitor,
                                                wr_action_create_t a,

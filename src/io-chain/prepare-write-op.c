@@ -7,6 +7,7 @@
 #include "src/io-chain/write-op-impl.h"
 #include "src/util/utlist.h"
 #include "src/util/log.h"
+#include <stdlib.h>
 
 static void convert_write(uint64_t*         cur_offset,
                           wr_action_write_t action,

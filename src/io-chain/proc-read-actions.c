@@ -8,6 +8,7 @@
 #include "src/io-chain/read-op-impl.h"
 #include "src/util/utlist.h"
 #include "src/util/log.h"
+#include <stdlib.h>
 
 /**
  * This file contains the main hg_proc_mobject_store_read_op_t
