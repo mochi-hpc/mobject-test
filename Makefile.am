@@ -24,8 +24,11 @@ CLIENT_CFLAGS = @CLIENT_CFLAGS@
 lib_LTLIBRARIES = \
   lib/libmobject-client.la \
   lib/libmobject-server.la \
-  lib/libmobject-comparators.la \
-  lib/libmobject-bedrock.la
+  lib/libmobject-comparators.la
+
+if BUILD_BEDROCK
+  lib_LTLIBRARIES += lib/libmobject-bedrock.la
+endif
 
 bin_PROGRAMS += \
   bin/mobject-server-ctl
