@@ -4,7 +4,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([include/libmobject-store.h])
-AC_CONFIG_HEADER([src/mobject-store-config.h])
+AC_CONFIG_HEADERS([src/mobject-store-config.h])
 LT_PREREQ([2.2])
 AM_PROG_AR
 LT_INIT([dlopen])
