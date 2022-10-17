@@ -23,7 +23,9 @@
 
 ## HDF5 and Mobject
 
-  Mobject API is a subset of the RADOS API from Ceph’s object storage layer.
+  [Mobject API](/include/librados-mobject-store.h) is a subset of the 
+  [RADOS API](https://github.com/ceph/ceph/blob/main/src/include/rados/librados.h) 
+  from Ceph’s object storage layer.
 Therefore, [HDF5 RADOS VOL plugin-in](https://github.com/HDFGroup/vol-rados)
 can use Mobject.
 
