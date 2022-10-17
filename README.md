@@ -11,6 +11,6 @@
 
 ## FAQ
 
-See (FAQ)[doc\FAQ.md].
+See `doc\FAQ.md`.
 
 
