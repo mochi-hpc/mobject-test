@@ -1,7 +1,6 @@
 # Frequently Asked Questions
 
-See [h5VLrados.c]
-(https://github.com/HDFGroup/vol-rados/blob/master/src/H5VLrados.c)
+* How can HDF5 RADOS VOL plugin work with Mobject?
 
-how HDF5 RADOS VOL calls APIs.
+  See [h5VLrados.c](https://github.com/HDFGroup/vol-rados/blob/master/src/H5VLrados.c) to understand how HDF5 RADOS VOL plugin calls APIs.
 
