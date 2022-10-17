@@ -21,6 +21,12 @@
    spack install mobject
 ```
 
+## HDF5 and Mobject
+
+  Mobject API is a subset of the RADOS API from Ceph’s object storage layer.
+Therefore, [HDF5 RADOS VOL plugin-in](https://github.com/HDFGroup/vol-rados)
+can use Mobject.
+
 ## FAQ
 
 See [doc/FAQ.md](doc/FAQ.md).
