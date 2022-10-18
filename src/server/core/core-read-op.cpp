@@ -39,27 +39,13 @@ static void read_op_exec_end(void*);
 
 /* defined in core-write-op.cpp */
 extern uint64_t mobject_compute_object_size(struct mobject_provider* provider,
-                                            sdskv_provider_handle_t  ph,
-                                            sdskv_database_id_t      seg_db_id,
+                                            yk_database_handle_t     seg_dbh,
                                             oid_t                    oid,
                                             time_t                   ts);
 
-static oid_t get_oid_from_name(margo_instance_id       mid,
-                               sdskv_provider_handle_t ph,
-                               sdskv_database_id_t     name_db_id,
-                               const char*             name);
-
-#if 0
-struct read_request_t {
-    double timestamp;              // timestamp at which the segment was created
-    uint64_t absolute_start_index; // start index within the object
-    uint64_t absolute_end_index;   // end index within the object
-    uint64_t region_start_index;   // where to start within the region
-    uint64_t region_end_index;     // where to end within the region
-    uint64_t client_offset;        // offset within the client's buffer
-    bake_region_id_t region;  // region id
-};
-#endif
+static oid_t get_oid_from_name(margo_instance_id    mid,
+                               yk_database_handle_t name_dbh,
+                               const char*          name);
 
 static struct read_op_visitor read_op_exec
     = {.visit_begin                 = read_op_exec_begin,
@@ -85,9 +71,8 @@ void read_op_exec_begin(void* u)
     const char* object_name = vargs->object_name;
     oid_t       oid         = vargs->oid;
     if (oid == 0) {
-        sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
-        sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
-        oid        = get_oid_from_name(mid, sdskv_ph, name_db_id, object_name);
+        yk_database_handle_t name_dbh = vargs->provider->name_dbh;
+        oid        = get_oid_from_name(mid, name_dbh, object_name);
         vargs->oid = oid;
     }
     LEAVING
@@ -98,8 +83,7 @@ void read_op_exec_stat(void* u, uint64_t* psize, time_t* pmtime, int* prval)
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = vargs->provider->segment_db_id;
+    yk_database_handle_t seg_dbh = vargs->provider->segment_dbh;
     // find oid
     oid_t oid = vargs->oid;
     if (oid == 0) {
@@ -109,8 +93,7 @@ void read_op_exec_stat(void* u, uint64_t* psize, time_t* pmtime, int* prval)
     }
 
     time_t ts = time(NULL);
-    *psize = mobject_compute_object_size(vargs->provider, sdskv_ph, seg_db_id,
-                                         oid, ts);
+    *psize    = mobject_compute_object_size(vargs->provider, seg_dbh, oid, ts);
 
     LEAVING;
 }
@@ -125,15 +108,14 @@ void read_op_exec_read(void*    u,
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    bake_provider_handle_t  bph = vargs->provider->bake_ph;
-    bake_target_id_t        bti = vargs->provider->bake_tid;
-    bake_region_id_t        rid;
-    hg_bulk_t               remote_bulk     = vargs->bulk_handle;
-    const char*             remote_addr_str = vargs->client_addr_str;
-    hg_addr_t               remote_addr     = vargs->client_addr;
-    sdskv_provider_handle_t sdskv_ph        = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id       = vargs->provider->segment_db_id;
-    int                     ret;
+    bake_provider_handle_t bph = vargs->provider->bake_ph;
+    bake_target_id_t       bti = vargs->provider->bake_tid;
+    bake_region_id_t       rid;
+    hg_bulk_t              remote_bulk     = vargs->bulk_handle;
+    const char*            remote_addr_str = vargs->client_addr_str;
+    hg_addr_t              remote_addr     = vargs->client_addr;
+    yk_database_handle_t   seg_dbh         = vargs->provider->segment_dbh;
+    yk_return_t            yret;
 
     uint64_t client_start_index = offset;
     uint64_t client_end_index   = offset + len;
@@ -158,44 +140,44 @@ void read_op_exec_read(void*    u,
 
     size_t        max_segments = 128; // XXX this is a pretty arbitrary number
     segment_key_t segment_keys[max_segments];
-    void*         segment_keys_addrs[max_segments];
     hg_size_t     segment_keys_size[max_segments];
     bake_region_id_t segment_data[max_segments];
-    void*            segment_data_addrs[max_segments];
     hg_size_t        segment_data_size[max_segments];
-    for (auto i = 0; i < max_segments; i++) {
-        segment_keys_addrs[i] = (void*)(&segment_keys[i]);
-        segment_keys_size[i]  = sizeof(segment_key_t);
-        segment_data_addrs[i] = (void*)(&segment_data[i]);
-        segment_data_size[i]  = sizeof(bake_region_id_t);
-    }
 
     bool done          = false;
     int  seg_start_ndx = 0;
+
     while (!coverage.full() && !done) {
 
-        // get the next max_segments segments
-        size_t num_segments = max_segments;
-        ret = sdskv_list_keyvals(sdskv_ph, seg_db_id, (const void*)&lb,
-                                 sizeof(lb), segment_keys_addrs,
-                                 segment_keys_size, segment_data_addrs,
-                                 segment_data_size, &num_segments);
+        yret = yk_list_keyvals_packed(
+            seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&lb,
+            sizeof(lb),                              /* strict lower bound */
+            (const void*)&oid, sizeof(oid),          /* prefix */
+            max_segments,                            /* count */
+            segment_keys,                            /* keys buffer */
+            max_segments * sizeof(segment_key_t),    /* keys buffer size */
+            segment_keys_size,                       /* key sizes */
+            segment_data,                            /* data buffer */
+            max_segments * sizeof(bake_region_id_t), /* data buffer size */
+            segment_data_size);                      /* data sizes */
 
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_list_keyvals returned %d",
-                        __func__, __LINE__, ret);
+        if (yret != YOKAN_SUCCESS) {
+            margo_error(mid,
+                        "[mobject] %s:%d: yk_list_keyvals_packed returned %d",
+                        __func__, __LINE__, yret);
             *prval = -1;
             LEAVING;
             return;
         }
 
         size_t i;
-        for (i = seg_start_ndx; i < num_segments; i++) {
+        for (i = seg_start_ndx; i < max_segments; i++) {
 
             const segment_key_t&    seg    = segment_keys[i];
             const bake_region_id_t& region = segment_data[i];
 
-            if (seg.oid != oid || coverage.full()) {
+            if (segment_keys_size[i] == YOKAN_NO_MORE_KEYS || seg.oid != oid
+                || coverage.full()) {
                 done = true;
                 break;
             }
@@ -217,15 +199,15 @@ void read_op_exec_read(void*    u,
                     uint64_t region_offset = r.start - seg.start_index;
                     uint64_t remote_offset = r.start - offset;
                     uint64_t bytes_read    = 0;
-                    ret = bake_proxy_read(bph, bti, region, region_offset,
-                                          remote_bulk, remote_offset,
-                                          remote_addr_str, segment_size,
-                                          &bytes_read);
-                    if (ret != 0) {
+                    int bret = bake_proxy_read(bph, bti, region, region_offset,
+                                               remote_bulk, remote_offset,
+                                               remote_addr_str, segment_size,
+                                               &bytes_read);
+                    if (bret != 0) {
                         *prval = -1;
                         margo_error(
                             mid, "[mobject] %s:%d: bake_proxy_read returned %d",
-                            __func__, __LINE__, ret);
+                            __func__, __LINE__, bret);
                         LEAVING;
                         return;
                     } else if (bytes_read != segment_size) {
@@ -258,8 +240,8 @@ void read_op_exec_read(void*    u,
                         = {const_cast<char*>(base + region_offset)};
                     hg_size_t buf_sizes[1] = {segment_size};
                     hg_bulk_t handle;
-                    ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes,
-                                            HG_BULK_READ_ONLY, &handle);
+                    int ret = margo_bulk_create(mid, 1, buf_ptrs, buf_sizes,
+                                                HG_BULK_READ_ONLY, &handle);
                     if (ret != HG_SUCCESS) {
                         margo_error(
                             mid,
@@ -273,8 +255,6 @@ void read_op_exec_read(void*    u,
                         mid, HG_BULK_PUSH, remote_addr, remote_bulk,
                         buf.as_offset + remote_offset, handle, 0, segment_size);
                     if (ret != HG_SUCCESS) {
-                        margo_error(mid, "margo_bulk_transfer returned %d",
-                                    ret);
                         margo_error(
                             mid,
                             "[mobject] %s:%d: margo_bulk_transfer returned %d",
@@ -301,9 +281,6 @@ void read_op_exec_read(void*    u,
             lb.timestamp = seg.timestamp;
             lb.seq_id    = seg.seq_id;
         } // end for
-
-        seg_start_ndx = 1;
-        if (num_segments != max_segments) done = true;
     }
     *bytes_read = coverage.bytes_read();
     LEAVING;
@@ -318,10 +295,9 @@ void read_op_exec_omap_get_keys(void*                      u,
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
-    int                     ret;
+    const char*          object_name = vargs->object_name;
+    yk_database_handle_t omap_dbh    = vargs->provider->omap_dbh;
+    yk_return_t          yret;
     *prval = 0;
 
     oid_t oid = vargs->oid;
@@ -338,35 +314,42 @@ void read_op_exec_omap_get_keys(void*                      u,
     lb->oid             = oid;
     strcpy(lb->key, start_after);
 
-    hg_size_t              max_keys = 10;
-    hg_size_t              key_len  = MAX_OMAP_KEY_SIZE + sizeof(omap_key_t);
-    std::vector<void*>     keys(max_keys);
+    hg_size_t max_keys = 10;
+    hg_size_t key_len  = MAX_OMAP_KEY_SIZE + sizeof(omap_key_t);
+    // std::vector<void*>     keys(max_keys);
     std::vector<hg_size_t> ksizes(max_keys, key_len);
-    std::vector<std::vector<char>> buffers(max_keys,
-                                           std::vector<char>(key_len));
-    for (auto i = 0; i < max_keys; i++) keys[i] = (void*)buffers[i].data();
+    // std::vector<std::vector<char>> buffers(max_keys,
+    //                                       std::vector<char>(key_len));
+    // for (auto i = 0; i < max_keys; i++) keys[i] = (void*)buffers[i].data();
+    std::vector<char> keys(max_keys * key_len);
 
     hg_size_t keys_retrieved = max_keys;
     hg_size_t count          = 0;
     do {
-        ret = sdskv_list_keys(sdskv_ph, omap_db_id, (const void*)lb, lb_size,
-                              keys.data(), ksizes.data(), &keys_retrieved);
-        if (ret != SDSKV_SUCCESS) {
+        yret
+            = yk_list_keys_packed(omap_dbh, YOKAN_MODE_DEFAULT, (const void*)lb,
+                                  lb_size, /* strict lower bound */
+                                  (const void*)&oid, sizeof(oid), /* prefix */
+                                  max_keys,                       /* count */
+                                  keys.data(),    /* keys buffer */
+                                  keys.size(),    /* buffer size */
+                                  ksizes.data()); /* key sizes */
+        if (yret != YOKAN_SUCCESS) {
             *prval = -1;
-            margo_error(mid, "[mobject] %s:%d: sdskv_list_keys returned %d",
-                        __func__, __LINE__, ret);
+            margo_error(mid, "[mobject] %s:%d: yk_list_keys_packed returned %d",
+                        __func__, __LINE__, yret);
             break;
         }
-        const char* k = NULL;
-        for (auto i = 0; i < keys_retrieved && count < max_return;
-             i++, count++) {
+        const char* k          = NULL;
+        keys_retrieved         = 0;
+        size_t keys_buf_offset = 0;
+        for (auto i = 0; i < max_keys && count < max_return;
+             i++, count++, keys_retrieved++) {
+            if (ksizes[i] == YOKAN_NO_MORE_KEYS) break;
             // extract the actual key part, without the oid
-            k = ((omap_key_t*)keys[i])->key;
-            /* this key is not part of the same object, we should leave the loop
-             */
-            if (((omap_key_t*)keys[i])->oid != oid)
-                goto out; /* ugly way of leaving the loop, I know ... */
+            k = ((omap_key_t*)(keys.data() + keys_buf_offset))->key;
             omap_iter_append(*iter, k, nullptr, 0);
+            keys_buf_offset += ksizes[i];
         }
         if (k != NULL) {
             strcpy(lb->key, k);
@@ -389,10 +372,9 @@ void read_op_exec_omap_get_vals(void*                      u,
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
-    int                     ret;
+    const char*          object_name = vargs->object_name;
+    yk_database_handle_t omap_dbh    = vargs->provider->omap_dbh;
+    yk_return_t          yret;
     *prval = 0;
 
     oid_t oid = vargs->oid;
@@ -439,21 +421,29 @@ void read_op_exec_omap_get_vals(void*                      u,
         vals[i] = (void*)val_buffers[i].data();
     }
 
-    hg_size_t items_retrieved = max_items;
-    hg_size_t count           = 0;
+    size_t items_retrieved = 0;
+    size_t count           = 0;
     do {
-        ret = sdskv_list_keyvals_with_prefix(
-            sdskv_ph, omap_db_id, (const void*)lb, lb_size, (const void*)prefix,
-            prefix_actual_size, keys.data(), ksizes.data(), vals.data(),
-            vsizes.data(), &items_retrieved);
-        if (ret != SDSKV_SUCCESS) {
+        yret = yk_list_keyvals(omap_dbh, YOKAN_MODE_DEFAULT, (const void*)lb,
+                               lb_size, /* strict lower bound */
+                               (const void*)prefix,
+                               prefix_actual_size,          /* prefix */
+                               max_items,                   /* count */
+                               keys.data(), ksizes.data(),  /* keys */
+                               vals.data(), vsizes.data()); /* values */
+
+        if (yret != YOKAN_SUCCESS) {
             *prval = -1;
-            margo_error(
-                mid,
-                "[mobject] %s:%d: sdskv_list_keyvals_with_prefix returned %d",
-                __func__, __LINE__, ret);
+            margo_error(mid, "[mobject] %s:%d: yk_list_keyvals returned %d",
+                        __func__, __LINE__, yret);
             break;
         }
+
+        for (items_retrieved = 0; items_retrieved < max_items;
+             items_retrieved++) {
+            if (ksizes[items_retrieved] == YOKAN_NO_MORE_KEYS) break;
+        }
+
         const char* k;
         for (auto i = 0; i < items_retrieved && count < max_return;
              i++, count++) {
@@ -486,10 +476,9 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    const char*             object_name = vargs->object_name;
-    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     omap_db_id  = vargs->provider->omap_db_id;
-    int                     ret;
+    const char*          object_name = vargs->object_name;
+    yk_database_handle_t omap_dbh    = vargs->provider->omap_dbh;
+    yk_return_t          yret;
     *prval = 0;
 
     oid_t oid = vargs->oid;
@@ -503,14 +492,17 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
     omap_iter_create(iter);
 
     // figure out key sizes
-    std::vector<hg_size_t> ksizes(num_keys);
-    hg_size_t              max_ksize = 0;
+    std::vector<size_t> ksizes(num_keys);
+    size_t              max_ksize = 0;
     for (auto i = 0; i < num_keys; i++) {
-        hg_size_t s = offsetof(omap_key_t, key) + strlen(keys[i]) + 1;
+        size_t s = offsetof(omap_key_t, key) + strlen(keys[i]) + 1;
         if (s > max_ksize) max_ksize = s;
         ksizes[i] = s;
     }
     max_ksize += sizeof(omap_key_t);
+
+    // TODO use length_mutli and get_multi or even get_packed
+    // with a large enough buffer
 
     omap_key_t* key = (omap_key_t*)calloc(1, max_ksize);
     for (size_t i = 0; i < num_keys; i++) {
@@ -519,21 +511,21 @@ void read_op_exec_omap_get_vals_by_keys(void*                      u,
         strcpy(key->key, keys[i]);
         // get length of the value
         hg_size_t vsize;
-        ret = sdskv_length(sdskv_ph, omap_db_id, (const void*)key, ksizes[i],
-                           &vsize);
-        if (ret != SDSKV_SUCCESS) {
+        yret = yk_length(omap_dbh, YOKAN_MODE_DEFAULT, (const void*)key,
+                         ksizes[i], &vsize);
+        if (yret != YOKAN_SUCCESS) {
             *prval = -1;
-            margo_error(mid, "[mobject] %s:%d: sdskv_length returned %d",
-                        __func__, __LINE__, ret);
+            margo_error(mid, "[mobject] %s:%d: yk_length returned %d", __func__,
+                        __LINE__, yret);
             break;
         }
         std::vector<char> value(vsize);
-        ret = sdskv_get(sdskv_ph, omap_db_id, (const void*)key, ksizes[i],
-                        (void*)value.data(), &vsize);
-        if (ret != SDSKV_SUCCESS) {
+        yret = yk_get(omap_dbh, YOKAN_MODE_DEFAULT, (const void*)key, ksizes[i],
+                      (void*)value.data(), &vsize);
+        if (yret != YOKAN_SUCCESS) {
             *prval = -1;
             margo_error(mid, "[mobject] %s:%d: sdskv_get returned %d", __func__,
-                        __LINE__, ret);
+                        __LINE__, yret);
             break;
         }
         omap_iter_append(*iter, keys[i], value.data(), vsize);
@@ -546,17 +538,16 @@ void read_op_exec_end(void* u)
     auto vargs = static_cast<server_visitor_args_t>(u);
 }
 
-static oid_t get_oid_from_name(margo_instance_id       mid,
-                               sdskv_provider_handle_t ph,
-                               sdskv_database_id_t     name_db_id,
-                               const char*             name)
+static oid_t get_oid_from_name(margo_instance_id    mid,
+                               yk_database_handle_t name_dbh,
+                               const char*          name)
 {
     ENTERING;
-    oid_t     result   = 0;
-    hg_size_t oid_size = sizeof(result);
-    int ret = sdskv_get(ph, name_db_id, (const void*)name, strlen(name) + 1,
-                        (void*)&result, &oid_size);
-    if (ret != SDSKV_SUCCESS) result = 0;
+    oid_t       result   = 0;
+    size_t      oid_size = sizeof(result);
+    yk_return_t yret = yk_get(name_dbh, YOKAN_MODE_DEFAULT, (const void*)name,
+                              strlen(name) + 1, (void*)&result, &oid_size);
+    if (yret != YOKAN_SUCCESS) result = 0;
     LEAVING;
     return result;
 }

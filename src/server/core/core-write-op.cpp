@@ -444,9 +444,9 @@ void write_op_exec_remove(void* u)
 
     size_t        max_segments = 128; // XXX this is a pretty arbitrary number
     segment_key_t segment_keys[max_segments];
-    hg_size_t     segment_keys_sizes[max_segments];
+    size_t        segment_keys_sizes[max_segments];
     bake_region_id_t segment_data[max_segments];
-    hg_size_t        segment_data_sizes[max_segments];
+    size_t           segment_data_sizes[max_segments];
 
     /* iterate over and remove all segments for this oid */
     bool done = false;
@@ -623,7 +623,7 @@ static oid_t get_or_create_oid(struct mobject_provider* provider,
 {
     margo_instance_id mid = provider->mid;
     oid_t             oid = 0;
-    hg_size_t         s;
+    size_t            s;
     yk_return_t       yret;
     ENTERING;
 
