@@ -1,8 +1,10 @@
 ![logo](mobject_logo.png) 
 # Mobject
+[![check spelling](https://github.com/hyoklee/mobject/actions/workflows/spell.yml/badge.svg)](https://github.com/hyoklee/mobject/actions/workflows/spell.yml)
+[![spack mobject](https://github.com/hyoklee/mobject/actions/workflows/spack.yml/badge.svg)](https://github.com/hyoklee/mobject/actions/workflows/spack.yml)
 
-  Mobject is a distributed object storage system
- built using a composition of [Mochi](https://mochi.readthedocs.io) components: 
+Mobject is a distributed object storage system
+built using a composition of [Mochi](https://mochi.readthedocs.io) components: 
  
  * [mochi-bake](https://github.com/mochi-hpc/mochi-bake) (for bulk storage)
  * [mochi-bedrock](https://github.com/mochi-hpc/mochi-bedrock) 
