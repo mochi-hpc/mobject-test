@@ -30,9 +30,8 @@ static void write_op_exec_omap_set(
 static void write_op_exec_omap_rm_keys(void*, char const* const*, size_t);
 
 static oid_t get_or_create_oid(struct mobject_provider* provider,
-                               sdskv_provider_handle_t  ph,
-                               sdskv_database_id_t      name_db_id,
-                               sdskv_database_id_t      oid_db_id,
+                               yk_database_handle_t     oid_dbh,
+                               yk_database_handle_t     name_dbh,
                                const char*              object_name);
 
 static void insert_region_log_entry(struct mobject_provider* provider,
@@ -61,8 +60,7 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
                                    time_t                   ts = 0);
 
 uint64_t mobject_compute_object_size(struct mobject_provider* provider,
-                                     sdskv_provider_handle_t  ph,
-                                     sdskv_database_id_t      seg_db_id,
+                                     yk_database_handle_t     seg_dbh,
                                      oid_t                    oid,
                                      time_t                   ts);
 
@@ -89,12 +87,11 @@ extern "C" void core_write_op(mobject_store_write_op_t write_op,
 
 void write_op_exec_begin(void* u)
 {
-    auto                    vargs      = static_cast<server_visitor_args_t>(u);
-    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
-    oid_t oid  = get_or_create_oid(vargs->provider, sdskv_ph, name_db_id,
-                                  oid_db_id, vargs->object_name);
+    auto                 vargs    = static_cast<server_visitor_args_t>(u);
+    yk_database_handle_t name_dbh = vargs->provider->name_dbh;
+    yk_database_handle_t oid_dbh  = vargs->provider->oid_dbh;
+    oid_t oid  = get_or_create_oid(vargs->provider, name_dbh, oid_dbh,
+                                  vargs->object_name);
     vargs->oid = oid;
 }
 
@@ -341,8 +338,7 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
     // find out the current length of the object
     time_t   ts     = time(NULL);
     uint64_t offset = mobject_compute_object_size(
-        vargs->provider, vargs->provider->sdskv_ph,
-        vargs->provider->segment_db_id, oid, ts);
+        vargs->provider, vargs->provider->segment_dbh, oid, ts);
 
     if (len > SMALL_REGION_THRESHOLD) {
 
@@ -411,32 +407,32 @@ void write_op_exec_remove(void* u)
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    const char*             object_name = vargs->object_name;
-    oid_t                   oid         = vargs->oid;
-    bake_provider_handle_t  bake_ph     = vargs->provider->bake_ph;
-    bake_target_id_t        bti         = vargs->provider->bake_tid;
-    sdskv_provider_handle_t sdskv_ph    = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     name_db_id  = vargs->provider->name_db_id;
-    sdskv_database_id_t     oid_db_id   = vargs->provider->oid_db_id;
-    sdskv_database_id_t     seg_db_id   = vargs->provider->segment_db_id;
-    int                     ret;
+    const char*            object_name = vargs->object_name;
+    oid_t                  oid         = vargs->oid;
+    bake_provider_handle_t bake_ph     = vargs->provider->bake_ph;
+    bake_target_id_t       bti         = vargs->provider->bake_tid;
+    yk_database_handle_t   name_dbh    = vargs->provider->name_dbh;
+    yk_database_handle_t   oid_dbh     = vargs->provider->oid_dbh;
+    yk_database_handle_t   seg_dbh     = vargs->provider->segment_dbh;
+    yk_return_t            yret;
+    int                    bret;
 
     /* remove name->OID entry to make object no longer visible to clients */
-    ret = sdskv_erase(sdskv_ph, name_db_id, (const void*)object_name,
-                      strlen(object_name) + 1);
-    if (ret != SDSKV_SUCCESS) {
+    yret = yk_erase(name_dbh, YOKAN_MODE_DEFAULT, (const void*)object_name,
+                    strlen(object_name) + 1);
+    if (yret != YOKAN_SUCCESS) {
         margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d", __func__,
-                    __LINE__, ret);
+                    __LINE__, yret);
         LEAVING;
         return;
     }
 
     /* TODO bg thread for everything beyond this point */
 
-    ret = sdskv_erase(sdskv_ph, oid_db_id, &oid, sizeof(oid));
-    if (ret != SDSKV_SUCCESS) {
+    yret = yk_erase(oid_dbh, YOKAN_MODE_DEFAULT, &oid, sizeof(oid));
+    if (yret != YOKAN_SUCCESS) {
         margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d", __func__,
-                    __LINE__, ret);
+                    __LINE__, yret);
         LEAVING;
         return;
     }
@@ -448,66 +444,63 @@ void write_op_exec_remove(void* u)
 
     size_t        max_segments = 128; // XXX this is a pretty arbitrary number
     segment_key_t segment_keys[max_segments];
-    void*         segment_keys_addrs[max_segments];
-    hg_size_t     segment_keys_size[max_segments];
+    hg_size_t     segment_keys_sizes[max_segments];
     bake_region_id_t segment_data[max_segments];
-    void*            segment_data_addrs[max_segments];
-    hg_size_t        segment_data_size[max_segments];
-    for (auto i = 0; i < max_segments; i++) {
-        segment_keys_addrs[i] = (void*)(&segment_keys[i]);
-        segment_keys_size[i]  = sizeof(segment_key_t);
-        segment_data_addrs[i] = (void*)(&segment_data[i]);
-        segment_data_size[i]  = sizeof(bake_region_id_t);
-    }
+    hg_size_t        segment_data_sizes[max_segments];
 
     /* iterate over and remove all segments for this oid */
-    bool done          = false;
-    int  seg_start_ndx = 0;
+    bool done = false;
     while (!done) {
-        size_t num_segments = max_segments;
 
-        ret = sdskv_list_keyvals(sdskv_ph, seg_db_id, (const void*)&lb,
-                                 sizeof(lb), segment_keys_addrs,
-                                 segment_keys_size, segment_data_addrs,
-                                 segment_data_size, &num_segments);
+        yret = yk_list_keyvals_packed(
+            seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&lb,
+            sizeof(lb),                              /* strict lower bound */
+            (const void*)&oid, sizeof(oid),          /* prefix */
+            max_segments,                            /* max key/val pairs */
+            segment_keys,                            /* keys buffer */
+            max_segments * sizeof(segment_key_t),    /* keys_buf_size */
+            segment_keys_sizes,                      /* key sizes */
+            segment_data,                            /* vals buffer */
+            max_segments * sizeof(bake_region_id_t), /* vals_buf_size */
+            segment_data_sizes);                     /* vals sizes */
 
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_list_keyvals returned %d",
-                        __func__, __LINE__, ret);
+        if (yret != YOKAN_SUCCESS) {
+            margo_error(mid,
+                        "[mobject] %s:%d: yk_list_keyvals_packed returned %d",
+                        __func__, __LINE__, yret);
             LEAVING;
             return;
         }
 
         size_t i;
-        for (i = seg_start_ndx; i < num_segments; i++) {
+        for (i = 0; i < max_segments; ++i) {
             const segment_key_t&    seg    = segment_keys[i];
             const bake_region_id_t& region = segment_data[i];
 
-            if (seg.oid != oid) {
+            if (segment_keys_sizes[i] == YOKAN_NO_MORE_KEYS) {
                 done = true;
                 break;
             }
 
             if (seg.type == seg_type_t::BAKE_REGION) {
-                ret = bake_remove(bake_ph, bti, region);
-                if (ret != BAKE_SUCCESS) {
+                bret = bake_remove(bake_ph, bti, region);
+                if (yret != BAKE_SUCCESS) {
                     margo_error(mid, "[mobject] %s:%d: bake_remove returned %d",
-                                __func__, __LINE__, ret);
+                                __func__, __LINE__, bret);
                     /* XXX should save the error and keep removing */
                     LEAVING;
                     return;
                 }
             }
-            ret = sdskv_erase(sdskv_ph, seg_db_id, &seg, sizeof(seg));
-            if (ret != SDSKV_SUCCESS) {
-                margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d",
-                            __func__, __LINE__, ret);
+
+            yret = yk_erase(seg_dbh, YOKAN_MODE_DEFAULT, &seg, sizeof(seg));
+            if (yret != YOKAN_SUCCESS) {
+                margo_error(mid, "[mobject] %s:%d: yk_erase returned %d",
+                            __func__, __LINE__, yret);
                 LEAVING;
                 return;
             }
         }
-        if (num_segments != max_segments) { done = true; }
-        seg_start_ndx = 1;
     }
 
     LEAVING;
@@ -551,15 +544,13 @@ void write_op_exec_omap_set(void*              u,
                             const size_t*      lens,
                             size_t             num)
 {
-    int               ret;
-    auto              vargs = static_cast<server_visitor_args_t>(u);
-    margo_instance_id mid   = vargs->provider->mid;
+    yk_return_t          yret;
+    auto                 vargs    = static_cast<server_visitor_args_t>(u);
+    margo_instance_id    mid      = vargs->provider->mid;
+    yk_database_handle_t omap_dbh = vargs->provider->omap_dbh;
+    oid_t                oid      = vargs->oid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
-    sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
-    oid_t                   oid        = vargs->oid;
+
     if (oid == 0) {
         margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
@@ -576,16 +567,18 @@ void write_op_exec_omap_set(void*              u,
     /* create an omap key of the right size */
     omap_key_t* k = (omap_key_t*)calloc(1, max_k_len + sizeof(omap_key_t));
 
+    // TODO maybe use yk_put_multi/packed instead
+
     for (auto i = 0; i < num; i++) {
         size_t k_len = strlen(keys[i]) + sizeof(omap_key_t);
         memset(k, 0, max_k_len + sizeof(omap_key_t));
         k->oid = oid;
         strcpy(k->key, keys[i]);
-        ret = sdskv_put(sdskv_ph, omap_db_id, (const void*)k, k_len,
-                        (const void*)vals[i], lens[i]);
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                        __LINE__, ret);
+        yret = yk_put(omap_dbh, YOKAN_MODE_DEFAULT, (const void*)k, k_len,
+                      (const void*)vals[i], lens[i]);
+        if (yret != YOKAN_SUCCESS) {
+            margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                        __LINE__, yret);
         }
     }
     free(k);
@@ -596,99 +589,114 @@ void write_op_exec_omap_rm_keys(void*              u,
                                 char const* const* keys,
                                 size_t             num_keys)
 {
-    int               ret;
-    auto              vargs = static_cast<server_visitor_args_t>(u);
-    margo_instance_id mid   = vargs->provider->mid;
+    yk_return_t          yret;
+    auto                 vargs    = static_cast<server_visitor_args_t>(u);
+    margo_instance_id    mid      = vargs->provider->mid;
+    yk_database_handle_t omap_dbh = vargs->provider->omap_dbh;
+    oid_t                oid      = vargs->oid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph   = vargs->provider->sdskv_ph;
-    sdskv_database_id_t     name_db_id = vargs->provider->name_db_id;
-    sdskv_database_id_t     oid_db_id  = vargs->provider->oid_db_id;
-    sdskv_database_id_t     omap_db_id = vargs->provider->omap_db_id;
-    oid_t                   oid        = vargs->oid;
     if (oid == 0) {
         margo_error(mid, "[mobject] %s:%d: oid == 0", __func__, __LINE__);
         LEAVING;
         return;
     }
 
-    for (auto i = 0; i < num_keys; i++) {
-        ret = sdskv_erase(sdskv_ph, omap_db_id, (const void*)keys[i],
-                          strlen(keys[i]) + 1);
-        if (ret != SDSKV_SUCCESS)
-            margo_error(mid, "[mobject] %s:%d: sdskv_erase returned %d",
-                        __func__, __LINE__, ret);
+    size_t* key_sizes = (size_t*)calloc(num_keys, sizeof(size_t));
+    for (size_t i = 0; i < num_keys; i++) {
+        key_sizes[i] = strlen(keys[i]) + 1;
+    }
+
+    yret = yk_erase_multi(omap_dbh, YOKAN_MODE_DEFAULT, num_keys,
+                          (const void* const*)keys, key_sizes);
+
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_erase_multi returned %d",
+                    __func__, __LINE__, yret);
     }
     LEAVING;
 }
 
 static oid_t get_or_create_oid(struct mobject_provider* provider,
-                               sdskv_provider_handle_t  ph,
-                               sdskv_database_id_t      name_db_id,
-                               sdskv_database_id_t      oid_db_id,
+                               yk_database_handle_t     name_dbh,
+                               yk_database_handle_t     oid_dbh,
                                const char*              object_name)
 {
     margo_instance_id mid = provider->mid;
+    oid_t             oid = 0;
+    hg_size_t         s;
+    yk_return_t       yret;
     ENTERING;
-    oid_t     oid = 0;
-    hg_size_t s;
-    int       ret;
 
-    s   = sizeof(oid);
-    ret = sdskv_get(ph, name_db_id, (const void*)object_name,
-                    strlen(object_name) + 1, &oid, &s);
-    if (SDSKV_ERR_UNKNOWN_KEY == ret) {
-        std::hash<std::string> hash_fn;
-        oid              = hash_fn(std::string(object_name));
-        s                = strlen(object_name) + 1;
-        char* name_check = (char*)malloc(s);
-        if (!name_check) {
-            LEAVING;
-            return 0;
-        }
-        while (1) {
-            /* avoid hash collisions by checking this oid mapping */
-            ret = sdskv_get(ph, oid_db_id, (const void*)&oid, sizeof(oid),
-                            (void*)name_check, &s);
-            if (ret == SDSKV_SUCCESS) {
-                if (strncmp(object_name, name_check, s) == 0) {
-                    /* the object has been created by someone else in the
-                     * meantime...  */
-                    free(name_check);
-                    LEAVING;
-                    return oid;
-                }
-                oid++;
-                continue;
-            }
-            break;
-        }
-        free(name_check);
-        // we make sure we stopped at an unknown key (not another SDSKV error)
-        if (ret != SDSKV_ERR_UNKNOWN_KEY) {
-            margo_error(mid, "[mobject] %s:%d: ret != SDSKV_ERR_UNKONW_KEY",
-                        __func__, __LINE__);
-            LEAVING;
-            return 0;
-        }
-        // set name => oid
-        ret = sdskv_put(ph, name_db_id, (const void*)object_name,
-                        strlen(object_name) + 1, &oid, sizeof(oid));
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                        __LINE__, ret);
-            LEAVING;
-            return 0;
-        }
-        // set oid => name
-        ret = sdskv_put(ph, oid_db_id, &oid, sizeof(oid),
-                        (const void*)object_name, strlen(object_name) + 1);
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                        __LINE__, ret);
-            LEAVING;
-            return 0;
-        }
+    s                       = sizeof(oid);
+    size_t object_name_size = strlen(object_name) + 1;
+
+    yret = yk_get(name_dbh, YOKAN_MODE_DEFAULT, (const void*)object_name,
+                  object_name_size, &oid, &s);
+
+    // oid found
+    if (yret == YOKAN_SUCCESS) {
+        LEAVING;
+        return oid;
     }
+
+    // error
+    if (yret != YOKAN_KEY_NOT_FOUND) {
+        margo_error(mid, "[mobject] %s:%d: yk_get returned %d", __func__,
+                    __LINE__, yret);
+        return 0;
+    }
+
+    // oid not found (yret == YOKAN_KEY_NOT_FOUND)
+
+    std::hash<std::string> hash_fn;
+    oid              = hash_fn(std::string(object_name));
+    char* name_check = (char*)malloc(object_name_size);
+    while (1) {
+        /* avoid hash collisions by checking this oid mapping */
+        s    = object_name_size;
+        yret = yk_get(oid_dbh, YOKAN_MODE_DEFAULT, (const void*)&oid,
+                      sizeof(oid), (void*)name_check, &s);
+
+        if (yret == YOKAN_SUCCESS) {
+            if (strncmp(object_name, name_check, s) == 0) {
+                /* the object has been created by someone else in the meantime
+                 */
+                free(name_check);
+                LEAVING;
+                return oid;
+            }
+            oid++;
+            continue;
+        }
+        break;
+    }
+
+    free(name_check);
+    // we make sure we stopped at an unknown key (not another Yokan error)
+    if (yret != YOKAN_KEY_NOT_FOUND) {
+        margo_error(mid, "[mobject] %s:%d: yk_get returned %d", __func__,
+                    __LINE__, yret);
+        return 0;
+    }
+    // set name => oid
+    yret = yk_put(name_dbh, YOKAN_MODE_DEFAULT, (const void*)object_name,
+                  object_name_size, &oid, sizeof(oid));
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
+        LEAVING;
+        return 0;
+    }
+    // set oid => name
+    yret = yk_put(oid_dbh, YOKAN_MODE_DEFAULT, &oid, sizeof(oid),
+                  (const void*)object_name, object_name_size);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
+        LEAVING;
+        return 0;
+    }
+
     LEAVING;
     return oid;
 }
@@ -702,9 +710,8 @@ static void insert_region_log_entry(struct mobject_provider* provider,
 {
     margo_instance_id mid = provider->mid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
-    segment_key_t           seg;
+    yk_database_handle_t seg_dbh = provider->segment_dbh;
+    segment_key_t        seg;
 
     seg.oid         = oid;
     seg.timestamp   = ts == 0 ? time(NULL) : ts;
@@ -714,11 +721,13 @@ static void insert_region_log_entry(struct mobject_provider* provider,
     ABT_mutex_lock(provider->mutex);
     seg.seq_id = provider->seq_id++;
     ABT_mutex_unlock(provider->mutex);
-    int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
-                        (const void*)region, sizeof(*region));
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                    __LINE__, ret);
+
+    yk_return_t yret
+        = yk_put(seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&seg, sizeof(seg),
+                 (const void*)region, sizeof(*region));
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
     }
     LEAVING;
 }
@@ -732,9 +741,8 @@ static void insert_small_region_log_entry(struct mobject_provider* provider,
 {
     margo_instance_id mid = provider->mid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
-    segment_key_t           seg;
+    yk_database_handle_t seg_dbh = provider->segment_dbh;
+    segment_key_t        seg;
 
     seg.oid         = oid;
     seg.timestamp   = ts == 0 ? time(NULL) : ts;
@@ -744,11 +752,11 @@ static void insert_small_region_log_entry(struct mobject_provider* provider,
     ABT_mutex_lock(provider->mutex);
     seg.seq_id = provider->seq_id++;
     ABT_mutex_unlock(provider->mutex);
-    int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
-                        (const void*)data, len);
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                    __LINE__, ret);
+    yk_return_t yret = yk_put(seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&seg,
+                              sizeof(seg), (const void*)data, len);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
     }
     LEAVING;
 }
@@ -761,9 +769,8 @@ static void insert_zero_log_entry(struct mobject_provider* provider,
 {
     margo_instance_id mid = provider->mid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
-    segment_key_t           seg;
+    yk_database_handle_t seg_dbh = provider->segment_dbh;
+    segment_key_t        seg;
 
     seg.oid         = oid;
     seg.timestamp   = ts == 0 ? time(NULL) : ts;
@@ -773,11 +780,12 @@ static void insert_zero_log_entry(struct mobject_provider* provider,
     ABT_mutex_lock(provider->mutex);
     seg.seq_id = provider->seq_id++;
     ABT_mutex_unlock(provider->mutex);
-    int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
-                        (const void*)nullptr, 0);
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                    __LINE__, ret);
+
+    yk_return_t yret = yk_put(seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&seg,
+                              sizeof(seg), (const void*)nullptr, 0);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
     }
     LEAVING;
 }
@@ -789,9 +797,8 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
 {
     margo_instance_id mid = provider->mid;
     ENTERING;
-    sdskv_provider_handle_t sdskv_ph  = provider->sdskv_ph;
-    sdskv_database_id_t     seg_db_id = provider->segment_db_id;
-    segment_key_t           seg;
+    yk_database_handle_t seg_dbh = provider->segment_dbh;
+    segment_key_t        seg;
 
     seg.oid         = oid;
     seg.timestamp   = ts == 0 ? time(NULL) : ts;
@@ -801,18 +808,18 @@ static void insert_punch_log_entry(struct mobject_provider* provider,
     ABT_mutex_lock(provider->mutex);
     seg.seq_id = provider->seq_id++;
     ABT_mutex_unlock(provider->mutex);
-    int ret = sdskv_put(sdskv_ph, seg_db_id, (const void*)&seg, sizeof(seg),
-                        (const void*)nullptr, 0);
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid, "[mobject] %s:%d: sdskv_put returned %d", __func__,
-                    __LINE__, ret);
+
+    yk_return_t yret = yk_put(seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&seg,
+                              sizeof(seg), (const void*)nullptr, 0);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(mid, "[mobject] %s:%d: yk_put returned %d", __func__,
+                    __LINE__, yret);
     }
     LEAVING;
 }
 
 uint64_t mobject_compute_object_size(struct mobject_provider* provider,
-                                     sdskv_provider_handle_t  ph,
-                                     sdskv_database_id_t      seg_db_id,
+                                     yk_database_handle_t     seg_dbh,
                                      oid_t                    oid,
                                      time_t                   ts)
 {
@@ -826,36 +833,34 @@ uint64_t mobject_compute_object_size(struct mobject_provider* provider,
     uint64_t size     = 0; // current assumed size
     uint64_t max_size = std::numeric_limits<uint64_t>::max();
 
-    size_t        max_segments = 128;
-    segment_key_t segment_keys[max_segments];
-    void*         segment_keys_addrs[max_segments];
-    hg_size_t     segment_keys_size[max_segments];
-
-    for (auto i = 0; i < max_segments; i++) {
-        segment_keys_addrs[i] = (void*)&segment_keys[i];
-        segment_keys_size[i]  = sizeof(segment_key_t);
-    }
+    size_t         max_segments = 128;
+    segment_key_t* segment_keys
+        = (segment_key_t*)calloc(max_segments, sizeof(segment_key_t));
+    size_t* segment_keys_size = (size_t*)calloc(max_segments, sizeof(size_t));
 
     bool done          = false;
     int  seg_start_ndx = 0;
     while (!done) {
+        yk_return_t yret = yk_list_keys_packed(
+            seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&lb,
+            sizeof(lb),                           /* strict lower bound */
+            (const void*)&oid, sizeof(oid),       /* prefix */
+            max_segments,                         /* count */
+            segment_keys,                         /* keys */
+            max_segments * sizeof(segment_key_t), /* buffer size */
+            segment_keys_size);                   /* key sizes */
 
-        size_t num_items = max_segments;
-
-        int ret = sdskv_list_keys(ph, seg_db_id, (const void*)&lb, sizeof(lb),
-                                  segment_keys_addrs, segment_keys_size,
-                                  &num_items);
-
-        if (ret != SDSKV_SUCCESS) {
-            margo_error(mid, "[mobject] %s:%d: sdskv_list_keys returned %d",
-                        __func__, __LINE__, ret);
+        if (yret != YOKAN_SUCCESS) {
+            margo_error(mid, "[mobject] %s:%d: yk_list_keys_packed returned %d",
+                        __func__, __LINE__, yret);
+            free(segment_keys);
+            free(segment_keys_size);
             LEAVING;
             return 0;
         }
 
-        size_t i;
-        for (i = seg_start_ndx; i < num_items; i++) {
-            if (segment_keys[i].oid != oid) {
+        for (size_t i = 0; i < max_segments; i++) {
+            if (segment_keys_size[i] == YOKAN_NO_MORE_KEYS) {
                 done = true;
                 break;
             }
@@ -873,9 +878,10 @@ uint64_t mobject_compute_object_size(struct mobject_provider* provider,
             lb.timestamp = seg.timestamp;
             lb.seq_id    = seg.seq_id;
         }
-        if (num_items != max_segments) { done = true; }
-        seg_start_ndx = 1;
     }
+
+    free(segment_keys);
+    free(segment_keys_size);
     LEAVING;
     return size;
 }
