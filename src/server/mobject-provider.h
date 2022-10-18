@@ -8,7 +8,9 @@
 
 #include <margo.h>
 #include <bake-client.h>
-#include <sdskv-client.h>
+#include <yokan/client.h>
+#include <yokan/database.h>
+#include <yokan/provider-handle.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,12 +28,11 @@ struct mobject_provider {
     /* bake-related data */
     bake_provider_handle_t bake_ph;
     bake_target_id_t       bake_tid;
-    /* sdskv-related data */
-    sdskv_provider_handle_t sdskv_ph;
-    sdskv_database_id_t     oid_db_id;
-    sdskv_database_id_t     name_db_id;
-    sdskv_database_id_t     segment_db_id;
-    sdskv_database_id_t     omap_db_id;
+    /* yokan-related data */
+    yk_database_handle_t oid_dbh;
+    yk_database_handle_t name_dbh;
+    yk_database_handle_t segment_dbh;
+    yk_database_handle_t omap_dbh;
     /* other data */
     uint32_t seq_id;
     int      ref_count;
