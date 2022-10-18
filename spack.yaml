@@ -6,7 +6,7 @@ spack:
   - pkg-config
   - mochi-margo
   - mochi-ssg+mpi
-  - mochi-sdskv+bedrock
+  - mochi-yokan+bedrock
   - mochi-bake+bedrock
   - mochi-ch-placement
   - mochi-bedrock
