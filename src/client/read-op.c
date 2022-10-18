@@ -28,7 +28,7 @@ void mobject_read_op_stat(mobject_store_read_op_t read_op,
                           int*                    prval)
 {
     MOBJECT_ASSERT(read_op != MOBJECT_READ_OP_NULL,
-                   "invalid mobject_store_read_op_t obect");
+                   "invalid mobject_store_read_op_t object");
     MOBJECT_ASSERT(!(read_op->ready),
                    "can't modify a read_op that is ready to be processed");
 
@@ -52,7 +52,7 @@ void mobject_read_op_read(mobject_store_read_op_t read_op,
                           int*                    prval)
 {
     MOBJECT_ASSERT(read_op != MOBJECT_READ_OP_NULL,
-                   "invalid mobject_store_read_op_t obect");
+                   "invalid mobject_store_read_op_t object");
     MOBJECT_ASSERT(!(read_op->ready),
                    "can't modify a read_op that is ready to be processed");
 
@@ -79,7 +79,7 @@ void mobject_read_op_omap_get_keys(mobject_store_read_op_t    read_op,
                                    int*                       prval)
 {
     MOBJECT_ASSERT(read_op != MOBJECT_READ_OP_NULL,
-                   "invalid mobject_store_read_op_t obect");
+                   "invalid mobject_store_read_op_t object");
     MOBJECT_ASSERT(!(read_op->ready),
                    "can't modify a read_op that is ready to be processed");
 
@@ -109,7 +109,7 @@ void mobject_read_op_omap_get_vals(mobject_store_read_op_t    read_op,
                                    int*                       prval)
 {
     MOBJECT_ASSERT(read_op != MOBJECT_READ_OP_NULL,
-                   "invalid mobject_store_read_op_t obect");
+                   "invalid mobject_store_read_op_t object");
     MOBJECT_ASSERT(!(read_op->ready),
                    "can't modify a read_op that is ready to be processed");
 
@@ -143,7 +143,7 @@ void mobject_read_op_omap_get_vals_by_keys(mobject_store_read_op_t    read_op,
                                            int*                       prval)
 {
     MOBJECT_ASSERT(read_op != MOBJECT_READ_OP_NULL,
-                   "invalid mobject_store_read_op_t obect");
+                   "invalid mobject_store_read_op_t object");
     MOBJECT_ASSERT(!(read_op->ready),
                    "can't modify a read_op that is ready to be processed");
 

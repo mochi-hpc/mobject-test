@@ -605,7 +605,7 @@ int mobject_store_aio_wait_for_complete(mobject_store_completion_t c);
 int mobject_store_aio_is_complete(mobject_store_completion_t c);
 
 /**
- * Get the return value of an asychronous operation
+ * Get the return value of an asynchronous operation
  *
  * The return value is set when the operation is complete or safe,
  * whichever comes first.

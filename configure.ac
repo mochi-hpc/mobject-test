@@ -18,7 +18,7 @@ AC_PROG_INSTALL
 # check for C++11
 AX_CXX_COMPILE_STDCXX(11, noext, mandatory)
 
-# checks for libraires
+# checks for libraries
 # pkg-config and libraries supporting that
 PKG_PROG_PKG_CONFIG
 if test "x$PKG_CONFIG" == "x"; then
