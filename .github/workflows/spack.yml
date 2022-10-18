@@ -23,11 +23,6 @@ jobs:
       with:
         repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Checkout mochi-spack-packages
-      uses: actions/checkout@v2
-      with:
-        repository: mochi-hpc/mochi-spack-packages
-        path: ./mochi-spack-packages
     - name: Run a multi-line script
       run: |
         . ./spack/share/spack/setup-env.sh
