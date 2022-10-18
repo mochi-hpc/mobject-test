@@ -6,7 +6,7 @@
  
  * [mochi-bake](https://github.com/mochi-hpc/mochi-bake) (for bulk storage)
  * [mochi-bedrock](https://github.com/mochi-hpc/mochi-bedrock) 
-   (for configuration and bootstrapping). 
+   (for configuration and bootstrapping) 
  * [mochi-sdskv](https://github.com/mochi-hpc/mochi-sdskv)
    (for metadata and log indexing)
  * [mochi-ssg](https://github.com/mochi-hpc/mochi-ssg) (for group membership)
