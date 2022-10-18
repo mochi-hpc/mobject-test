@@ -1,0 +1,35 @@
+name: spack mobject
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+    - 'doc/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Spack
+      uses: actions/checkout@v2
+      with:
+        repository: spack/spack
+        path: ./spack
+    - name: Checkout mochi-spack-packages
+      uses: actions/checkout@v2
+      with:
+        repository: mochi-hpc/mochi-spack-packages
+        path: ./mochi-spack-packages
+    - name: Checkout mochi-spack-packages
+      uses: actions/checkout@v2
+      with:
+        repository: mochi-hpc/mochi-spack-packages
+        path: ./mochi-spack-packages
+    - name: Run a multi-line script
+      run: |
+        . ./spack/share/spack/setup-env.sh
+        spack repo add ./mochi-spack-packages
+        spack install mobject
