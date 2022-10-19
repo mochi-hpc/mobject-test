@@ -95,7 +95,7 @@ int mobject_store_connect(mobject_store_t cluster)
         return -1;
     }
 
-    /* intialize margo */
+    /* initialize margo */
     /* XXX: probably want to expose some way of tweaking threading parameters */
     margo_instance_id mid = margo_init(proto, MARGO_SERVER_MODE, 0, -1);
     if (mid == MARGO_INSTANCE_NULL) {

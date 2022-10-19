@@ -25,7 +25,7 @@
  * A call to prepare_bulk_for_write_op will convert all the pointers to
  * positions in a bulk handle and make the object ready to be sent to a server.
  * It will also set ready to 1, at which point adding more actions
- * to the list becomes forbiden.
+ * to the list becomes forbidden.
  *
  * The hg_proc_mobject_store_write_op_t function allows serializing and
  * deserializing the object when sending and receiving it. Serializing only
@@ -37,7 +37,7 @@ struct mobject_store_write_op {
     int ready; // whether the unions in the actions are
                // to be interpreted as offsets in bulk handles
     hg_bulk_t        bulk_handle; // bulk handle exposing the data
-    size_t           num_actions; // number of action in the linked-list bellow
+    size_t           num_actions; // number of action in the linked-list below
     wr_action_base_t actions;     // list of actions
 };
 

@@ -28,7 +28,7 @@ void mobject_write_op_create(mobject_store_write_op_t write_op,
                              const char*              category)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -48,7 +48,7 @@ void mobject_write_op_write(mobject_store_write_op_t write_op,
                             size_t                   len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -69,7 +69,7 @@ void mobject_write_op_write_full(mobject_store_write_op_t write_op,
                                  size_t                   len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -110,7 +110,7 @@ void mobject_write_op_write_same(mobject_store_write_op_t write_op,
                                  size_t                   write_len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -133,7 +133,7 @@ void mobject_write_op_append(mobject_store_write_op_t write_op,
                              size_t                   len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -151,7 +151,7 @@ void mobject_write_op_append(mobject_store_write_op_t write_op,
 void mobject_write_op_remove(mobject_store_write_op_t write_op)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -159,7 +159,7 @@ void mobject_write_op_remove(mobject_store_write_op_t write_op)
     action->base.type         = WRITE_OPCODE_REMOVE;
 
     /* THE FOLLOWING IS A POTENTIAL (INCOMPLETE) OPTIMIZATION
-        // a remove operation will make all previous operations unecessary
+        // a remove operation will make all previous operations unnecessary
         // so we can delete all previously posted operations (and potentially
         // not even post the remove)
         wr_action_base_t current, temp;
@@ -186,7 +186,7 @@ void mobject_write_op_truncate(mobject_store_write_op_t write_op,
                                uint64_t                 offset)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -206,7 +206,7 @@ void mobject_write_op_zero(mobject_store_write_op_t write_op,
                            size_t                   len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -228,7 +228,7 @@ void mobject_write_op_omap_set(mobject_store_write_op_t write_op,
                                size_t                   num)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
@@ -270,7 +270,7 @@ void mobject_write_op_omap_rm_keys(mobject_store_write_op_t write_op,
                                    size_t                   keys_len)
 {
     MOBJECT_ASSERT(write_op != MOBJECT_WRITE_OP_NULL,
-                   "invalid mobject_store_write_op_t obect");
+                   "invalid mobject_store_write_op_t object");
     MOBJECT_ASSERT(!(write_op->ready),
                    "can't modify a write_op that is ready to be processed");
 
