@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([mobject], [0.6], [mdorier@anl.gov])
+AC_INIT([mobject], [0.7], [mdorier@anl.gov])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects silent-rules])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
