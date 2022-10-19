@@ -24,16 +24,6 @@
             "type" : "yokan",
             "provider_id" : 0,
             "config" : {
-                "comparators" : [
-                    { "name" : "mobject_oid_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_name_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_seg_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_omap_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" }
-                ],
                 "databases" : [
                     {
                         "name" : "mobject_oid_map",
