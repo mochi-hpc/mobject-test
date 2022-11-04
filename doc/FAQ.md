@@ -24,5 +24,50 @@ spack env create mochi-env ~/platform-configurations/ANL/Polaris/spack.yaml
 spack env activate mochi-env
 
 # Install mobject on Polaris.                                                   
-spack install mobject%gcc@11.2.0
+spack install mobject%gcc@11.2.0+bedrock
+```
+
+* How can I test Mobject on Polaris from source code?
+
+Install the required packages in [spack.yaml](../spack.yaml) and load them.
+
+You must use 'dev-replace-sdskv-with-yokan' branch.
+```
+git clone https://github.com/mochi-hpc/mobject
+cd mobject
+git checkout dev-replace-sdskv-with-yokan
+```
+
+Load system modules.
+```
+module load cudatoolkit-standalone
+module load PrgEnv-gnu
+module load libfabric
+```
+
+Run the following commands.
+```
+./prepare.sh
+./configure --enable-bedrock
+make
+make check
+```
+
+You should see 3 `PASS` and version `0.7`.
+
+```
+PASS: tests/mobject-connect-test.sh
+PASS: tests/mobject-client-test.sh
+PASS: tests/mobject-aio-test.sh
+============================================================================
+Testsuite summary for mobject 0.7
+============================================================================
+# TOTAL: 3
+# PASS:  3
+# SKIP:  0
+# XFAIL: 0
+# FAIL:  0
+# XPASS: 0
+# ERROR: 0
+============================================================================
 ```
