@@ -23,7 +23,7 @@ jobs:
       with:
         repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Run a multi-line script
+    - name: Run spack install mobject+bedrock
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
