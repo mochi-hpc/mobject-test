@@ -1,4 +1,4 @@
-name: ior+mobject@develop+bedrock
+name: ior+mobject@develop
 
 on:
   push:
@@ -21,9 +21,9 @@ jobs:
     - name: Checkout mochi-spack-packages
       uses: actions/checkout@v3
       with:
-        repository: mochi-hpc/mochi-spack-packages
+        repository: hyoklee/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Run spack install ior+mobject@develop+bedrock
+    - name: Run spack install ior+mobject@develop
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
