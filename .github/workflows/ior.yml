@@ -1,0 +1,30 @@
+name: ior+mobject@develop+bedrock
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+    - 'doc/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Spack
+      uses: actions/checkout@v3
+      with:
+        repository: spack/spack
+        path: ./spack
+    - name: Checkout mochi-spack-packages
+      uses: actions/checkout@v3
+      with:
+        repository: mochi-hpc/mochi-spack-packages
+        path: ./mochi-spack-packages
+    - name: Run spack install ior+mobject@develop+bedrock
+      run: |
+        . ./spack/share/spack/setup-env.sh
+        spack repo add ./mochi-spack-packages
+        spack install --test root ior+mobject@develop+bedrock
