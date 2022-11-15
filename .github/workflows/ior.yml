@@ -27,4 +27,5 @@ jobs:
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
-        spack install --test root ior+mobject@develop+bedrock
+        spack install --test root ior+mobject@develop
+        
