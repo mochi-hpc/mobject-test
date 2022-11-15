@@ -9,9 +9,8 @@
 
 #include <margo.h>
 #include <bake-client.h>
-#include <sdskv-client.h>
-/* server-side utilities and routines.  Clients are looking for either
- * libmobject-store.h or librados-mobject-store.h */
+#include <yokan/provider-handle.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,7 +30,7 @@ struct mobject_provider_init_args {
  * @param[in] mid           margo instance id
  * @param[in] provider_id   id of the provider
  * @param[in] bake_ph       Bake provider handle to use to write/read data
- * @param[in] sdskv_ph      SDSKV provider handle to use to access metadata
+ * @param[in] yokan_ph      Yokan provider handle to use to access metadata
  *                          providers
  * @param[in] args          Optional arguments
  * @param[out] provider     resulting provider
@@ -41,7 +40,7 @@ struct mobject_provider_init_args {
 int mobject_provider_register(margo_instance_id                  mid,
                               uint16_t                           provider_id,
                               bake_provider_handle_t             bake_ph,
-                              sdskv_provider_handle_t            sdskv_ph,
+                              yk_provider_handle_t               yokan_ph,
                               struct mobject_provider_init_args* args,
                               mobject_provider_t*                provider);
 

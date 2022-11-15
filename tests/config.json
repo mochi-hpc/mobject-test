@@ -8,7 +8,7 @@
         }
     ],
     "libraries" : {
-        "sdskv"   : "libsdskv-bedrock.so",
+        "yokan"   : "libyokan-bedrock-module.so",
         "bake"    : "libbake-bedrock.so",
         "mobject" : "lib/.libs/libmobject-bedrock.so"
     },
@@ -21,39 +21,37 @@
     "providers" : [
         {
             "name" : "metadata",
-            "type" : "sdskv",
+            "type" : "yokan",
             "provider_id" : 0,
             "config" : {
-                "comparators" : [
-                    { "name" : "mobject_oid_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_name_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_seg_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" },
-                    { "name" : "mobject_omap_map_compare",
-                      "library" : "lib/.libs/libmobject-comparators.so" }
-                ],
                 "databases" : [
                     {
                         "name" : "mobject_oid_map",
                         "type" : "map",
-                        "comparator" : "mobject_oid_map_compare"
+                        "config" : {
+                            "comparator" : "lib/.libs/libmobject-comparators.so:mobject_oid_map_compare"
+                        }
                     },
                     {
                         "name" : "mobject_name_map",
                         "type" : "map",
-                        "comparator" : "mobject_name_map_compare"
+                        "config" : {
+                            "comparator" : "lib/.libs/libmobject-comparators.so:mobject_name_map_compare"
+                        }
                     },
                     {
                         "name" : "mobject_seg_map",
                         "type" : "map",
-                        "comparator" : "mobject_seg_map_compare"
+                        "config" : {
+                            "comparator" : "lib/.libs/libmobject-comparators.so:mobject_seg_map_compare"
+                        }
                     },
                     {
                         "name" : "mobject_omap_map",
                         "type" : "map",
-                        "comparator" : "mobject_omap_map_compare"
+                        "config" : {
+                            "comparator" : "lib/.libs/libmobject-comparators.so:mobject_omap_map_compare"
+                        }
                     }
                 ]
             }
@@ -85,7 +83,7 @@
             "config" : {},
             "dependencies" : {
                 "bake_provider_handle" : "storage@local",
-                "sdskv_provider_handle" : "metadata@local"
+                "yokan_provider_handle" : "metadata@local"
             }
         }
     ]
