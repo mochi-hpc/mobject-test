@@ -34,5 +34,6 @@ jobs:
         spack env create myenv ./spack.yaml
         spack env activate myenv
         spack spec ior+mobject@develop
+        spack add ior+mobject@develop
         spack install --test root ior+mobject@develop
         
