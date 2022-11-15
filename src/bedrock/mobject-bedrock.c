@@ -15,14 +15,14 @@ static int mobject_register_provider(bedrock_args_t             args,
     mobject_args.json_config                       = config;
 
     size_t num_sdskv_ph
-        = bedrock_args_get_num_dependencies(args, "sdskv_provider_handle");
+        = bedrock_args_get_num_dependencies(args, "yokan_provider_handle");
     size_t num_bake_ph
         = bedrock_args_get_num_dependencies(args, "bake_provider_handle");
 
     if (num_sdskv_ph != 1) {
         margo_error(
             mid,
-            "mobject_register_provider: expected 1 sdskv provider handle,"
+            "mobject_register_provider: expected 1 yokan provider handle,"
             " %ld provided",
             num_sdskv_ph);
     }
@@ -34,13 +34,13 @@ static int mobject_register_provider(bedrock_args_t             args,
             num_bake_ph);
     }
 
-    sdskv_provider_handle_t sdskv_ph
-        = bedrock_args_get_dependency(args, "sdskv_provider_handle", 0);
+    yk_provider_handle_t yokan_ph
+        = bedrock_args_get_dependency(args, "yokan_provider_handle", 0);
 
     bake_provider_handle_t bake_ph
         = bedrock_args_get_dependency(args, "bake_provider_handle", 0);
 
-    return mobject_provider_register(mid, provider_id, bake_ph, sdskv_ph,
+    return mobject_provider_register(mid, provider_id, bake_ph, yokan_ph,
                                      &mobject_args,
                                      (mobject_provider_t*)provider);
 }
@@ -89,7 +89,7 @@ static int mobject_destroy_provider_handle(bedrock_module_provider_handle_t ph)
 }
 
 static struct bedrock_dependency mobject_provider_deps[3]
-    = {{"sdskv_provider_handle", "sdskv", BEDROCK_REQUIRED},
+    = {{"yokan_provider_handle", "yokan", BEDROCK_REQUIRED},
        {"bake_provider_handle", "bake", BEDROCK_REQUIRED},
        BEDROCK_NO_MORE_DEPENDENCIES};
 

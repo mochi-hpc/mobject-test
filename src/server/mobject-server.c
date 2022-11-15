@@ -37,7 +37,7 @@ static void mobject_finalize_cb(void* data);
 int mobject_provider_register(margo_instance_id                  mid,
                               uint16_t                           provider_id,
                               bake_provider_handle_t             bake_ph,
-                              sdskv_provider_handle_t            sdskv_ph,
+                              yk_provider_handle_t               yokan_ph,
                               struct mobject_provider_init_args* args,
                               mobject_provider_t*                provider)
 {
@@ -91,46 +91,79 @@ int mobject_provider_register(margo_instance_id                  mid,
         free(tmp_provider);
         return -1;
     }
-    /* SDSKV settings initialization */
-    sdskv_provider_handle_ref_incr(sdskv_ph);
-    tmp_provider->sdskv_ph = sdskv_ph;
-    ret = sdskv_open(sdskv_ph, "mobject_oid_map", &(tmp_provider->oid_db_id));
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to open mobject_oid_map from SDSKV provider\n");
+    /* Yokan settings initialization */
+    yk_database_id_t db_id;
+    yk_return_t      yret = YOKAN_SUCCESS;
+
+    /* -- oid_map -- */
+    yret = yk_database_find_by_name(yokan_ph->client, yokan_ph->addr,
+                                    yokan_ph->provider_id, "mobject_oid_map",
+                                    &db_id);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(
+            mid,
+            "[mobject] Unable to find mobject_oid_map from Yokan provider");
         bake_provider_handle_release(tmp_provider->bake_ph);
-        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
         free(tmp_provider);
+        return -1;
     }
-    ret = sdskv_open(sdskv_ph, "mobject_name_map", &(tmp_provider->name_db_id));
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to open mobject_name_map from SDSKV provider\n");
+    yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
+                              yokan_ph->provider_id, db_id,
+                              &(tmp_provider->oid_dbh));
+
+    /* -- name_map -- */
+    yret = yk_database_find_by_name(yokan_ph->client, yokan_ph->addr,
+                                    yokan_ph->provider_id, "mobject_name_map",
+                                    &db_id);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(
+            mid,
+            "[mobject] Unable to find mobject_name_map from Yokan provider");
         bake_provider_handle_release(tmp_provider->bake_ph);
-        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        yk_database_handle_release(tmp_provider->oid_dbh);
         free(tmp_provider);
+        return -1;
     }
-    ret = sdskv_open(sdskv_ph, "mobject_seg_map",
-                     &(tmp_provider->segment_db_id));
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to open mobject_seg_map from SDSKV provider\n");
+    yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
+                              yokan_ph->provider_id, db_id,
+                              &(tmp_provider->name_dbh));
+
+    /* -- seg_map -- */
+    yret = yk_database_find_by_name(yokan_ph->client, yokan_ph->addr,
+                                    yokan_ph->provider_id, "mobject_seg_map",
+                                    &db_id);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(
+            mid,
+            "[mobject] Unable to find mobject_seg_map from Yokan provider");
         bake_provider_handle_release(tmp_provider->bake_ph);
-        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        yk_database_handle_release(tmp_provider->name_dbh);
+        yk_database_handle_release(tmp_provider->oid_dbh);
         free(tmp_provider);
+        return -1;
     }
-    ret = sdskv_open(sdskv_ph, "mobject_omap_map", &(tmp_provider->omap_db_id));
-    if (ret != SDSKV_SUCCESS) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to open mobject_omap_map from SDSKV provider\n");
+    yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
+                              yokan_ph->provider_id, db_id,
+                              &(tmp_provider->segment_dbh));
+
+    /* -- omap_map -- */
+    yret = yk_database_find_by_name(yokan_ph->client, yokan_ph->addr,
+                                    yokan_ph->provider_id, "mobject_omap_map",
+                                    &db_id);
+    if (yret != YOKAN_SUCCESS) {
+        margo_error(
+            mid,
+            "[mobject] Unable to find mobject_omap_map from Yokan provider");
         bake_provider_handle_release(tmp_provider->bake_ph);
-        sdskv_provider_handle_release(tmp_provider->sdskv_ph);
+        yk_database_handle_release(tmp_provider->name_dbh);
+        yk_database_handle_release(tmp_provider->segment_dbh);
+        yk_database_handle_release(tmp_provider->oid_dbh);
         free(tmp_provider);
+        return -1;
     }
+    yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
+                              yokan_ph->provider_id, db_id,
+                              &(tmp_provider->omap_dbh));
 
     hg_id_t rpc_id;
 
@@ -332,7 +365,10 @@ static void mobject_finalize_cb(void* data)
     margo_deregister(provider->mid, provider->clean_id);
     margo_deregister(provider->mid, provider->stat_id);
 
-    sdskv_provider_handle_release(provider->sdskv_ph);
+    yk_database_handle_release(provider->oid_dbh);
+    yk_database_handle_release(provider->name_dbh);
+    yk_database_handle_release(provider->segment_dbh);
+    yk_database_handle_release(provider->omap_dbh);
     bake_provider_handle_release(provider->bake_ph);
     ABT_mutex_free(&provider->mutex);
     ABT_mutex_free(&provider->stats_mutex);
