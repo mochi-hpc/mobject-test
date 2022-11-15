@@ -25,9 +25,11 @@ jobs:
         path: ./mochi-spack-packages
     - name: Run spack install ior+mobject@develop
       run: |
+        pwd
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
-        spack env create myenv spack.yaml
+        ls
+        spack env create myenv ./spack.yaml
         spack env activate myenv
         spack spec ior+mobject@develop
         spack install --test root ior+mobject@develop
