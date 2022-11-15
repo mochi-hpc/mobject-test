@@ -4,7 +4,7 @@
  * See COPYRIGHT in top-level directory.
  */
 
-//#define FAKE_CPP_SERVER
+// #define FAKE_CPP_SERVER
 
 #include <assert.h>
 #include <stdlib.h>

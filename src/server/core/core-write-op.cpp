@@ -91,7 +91,7 @@ void write_op_exec_begin(void* u)
     yk_database_handle_t name_dbh = vargs->provider->name_dbh;
     yk_database_handle_t oid_dbh  = vargs->provider->oid_dbh;
     oid_t oid  = get_or_create_oid(vargs->provider, name_dbh, oid_dbh,
-                                  vargs->object_name);
+                                   vargs->object_name);
     vargs->oid = oid;
 }
 
