@@ -25,17 +25,17 @@ jobs:
       with:
         repository: hyoklee/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Run spack install ior+mobject@develop
+    - name: Run spack install ior
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
         spack env create myenv ./spack.yaml
         spack env activate myenv
         spack add mobject
-        spack install mobject@develop+bedrock
+        spack install mobject@develop +bedrock
         spack load mobject
         spack add ior
-        spack install ior@develep+mobject
+        spack install ior@develep +mobject
         spack load ior
         ior -a RADOS
         
