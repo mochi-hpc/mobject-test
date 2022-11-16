@@ -31,5 +31,12 @@ jobs:
         spack load mobject
         spack install ior@develop+mobject
         spack load ior
+        spack view --verbose symlink install ior@develop+mobject
+        ls install/lib/
+        ./prepare.sh
+        ./configure --enable-bedrock
+        make
+        make check
+        export MOBJECT_CLUSTER_FILE=/dev/shm/mobject.dat
         ior -a RADOS
         
