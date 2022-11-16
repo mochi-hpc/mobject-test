@@ -31,9 +31,11 @@ jobs:
         spack repo add ./mochi-spack-packages
         spack env create myenv ./spack.yaml
         spack env activate myenv
-        spack install --add  mobject@develop+bedrock
-        spack load mobject+bedrock
-        spack install --add ior@develep+mobject
+        spack add mobject
+        spack install mobject@develop+bedrock
+        spack load mobject
+        spack add ior
+        spack install ior@develep+mobject
         spack load ior
         ior -a RADOS
         
