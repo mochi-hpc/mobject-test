@@ -13,6 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Get Sources
+      uses: actions/checkout@v3
     - name: Checkout Spack
       uses: actions/checkout@v3
       with:
@@ -23,8 +25,6 @@ jobs:
       with:
         repository: hyoklee/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Get Sources
-      uses: actions/checkout@v3
     - name: Run spack install ior
       run: |
         . ./spack/share/spack/setup-env.sh
