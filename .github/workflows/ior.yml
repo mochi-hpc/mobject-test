@@ -13,8 +13,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Mobject
-      uses: actions/checkout@v3    
     - name: Checkout Spack
       uses: actions/checkout@v3
       with:
@@ -29,13 +27,9 @@ jobs:
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
-        spack env create myenv ./spack.yaml
-        spack env activate myenv
-        spack add mobject
-        spack install mobject@develop +bedrock
+        spack install mobject@develop+bedrock
         spack load mobject
-        spack add ior
-        spack install ior@develep +mobject
+        spack install ior@develop+mobject
         spack load ior
         ior -a RADOS
         
