@@ -77,5 +77,6 @@ jobs:
         ./configure --enable-bedrock
         make
         make check
+        cat ./test-suite.log
         export MOBJECT_CLUSTER_FILE=/dev/shm/mobject.dat
         ior -a RADOS
