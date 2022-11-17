@@ -218,7 +218,7 @@ void read_op_exec_read(void*    u,
                                     bytes_read, segment_size);
                         margo_error(
                             mid,
-                            "[mobject] %s:%d: baje_proxy_read invalid read of "
+                            "[mobject] %s:%d: bake_proxy_read invalid read of "
                             "%" PRIu64 " (requested %" PRIu64 ")",
                             __func__, __LINE__, bytes_read, segment_size);
                         LEAVING;
