@@ -84,6 +84,3 @@ jobs:
       with:
         name: test-suite.log
         path: ${{ runner.workspace }}/mobject/test-suite.log
-#        cat ./test-suite.log
-#        export MOBJECT_CLUSTER_FILE=/dev/shm/mobject.dat
-#        ior -a RADOS
