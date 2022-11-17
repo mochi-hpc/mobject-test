@@ -44,6 +44,7 @@ jobs:
         path: ./mochi-spack-packages
     - name: Run spack install ior
       run: |
+        sudo -s
         . ./spack/share/spack/setup-env.sh
         spack compiler find
         spack external find autoconf
@@ -76,8 +77,7 @@ jobs:
         ./prepare.sh
         ./configure --enable-bedrock
         make
-        sudo export LD_LIBRARY_PATH=$PWD/install/lib:$PWD/install/lib64
-        sudo make check
+        make check
     - name: Upload
       if: always()
       uses: actions/upload-artifact@v2
