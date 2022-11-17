@@ -76,7 +76,7 @@ jobs:
         ./prepare.sh
         ./configure --enable-bedrock
         make
-        make check
+        sudo make check
     - name: Upload
       if: always()
       uses: actions/upload-artifact@v2
