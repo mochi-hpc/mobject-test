@@ -44,9 +44,6 @@ jobs:
         path: ./mochi-spack-packages
     - name: Run spack install ior
       run: |
-        sudo -s
-        mkdir /usr/local/tmp
-        /usr/sbin/sysctl kernel.yama.ptrace_scope=0
         . ./spack/share/spack/setup-env.sh
         spack compiler find
         spack external find autoconf
@@ -79,7 +76,8 @@ jobs:
         ./prepare.sh
         ./configure --enable-bedrock
         make
-        make check
+        sudo ./ci.sh        
+
     - name: Upload
       if: always()
       uses: actions/upload-artifact@v2
