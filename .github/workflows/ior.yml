@@ -76,6 +76,7 @@ jobs:
         ./prepare.sh
         ./configure --enable-bedrock
         make
+        sudo export LD_LIBRARY_PATH=$PWD/install/lib:$PWD/install/lib64
         sudo make check
     - name: Upload
       if: always()
