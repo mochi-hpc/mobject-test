@@ -640,13 +640,13 @@ static oid_t get_or_create_oid(struct mobject_provider* provider,
     }
 
     // error
-    if (yret != YOKAN_KEY_NOT_FOUND) {
+    if (yret != YOKAN_ERR_KEY_NOT_FOUND) {
         margo_error(mid, "[mobject] %s:%d: yk_get returned %d", __func__,
                     __LINE__, yret);
         return 0;
     }
 
-    // oid not found (yret == YOKAN_KEY_NOT_FOUND)
+    // oid not found (yret == YOKAN_ERR_KEY_NOT_FOUND)
 
     std::hash<std::string> hash_fn;
     oid              = hash_fn(std::string(object_name));
@@ -673,7 +673,7 @@ static oid_t get_or_create_oid(struct mobject_provider* provider,
 
     free(name_check);
     // we make sure we stopped at an unknown key (not another Yokan error)
-    if (yret != YOKAN_KEY_NOT_FOUND) {
+    if (yret != YOKAN_ERR_KEY_NOT_FOUND) {
         margo_error(mid, "[mobject] %s:%d: yk_get returned %d", __func__,
                     __LINE__, yret);
         return 0;
