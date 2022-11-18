@@ -71,3 +71,68 @@ Testsuite summary for mobject 0.7
 # ERROR: 0
 ============================================================================
 ```
+
+* How can I run IOR with Mobject using the RADOS backend?
+
+An [IOR backend for RADOS](https://github.com/hpc/ior/blob/main/src/aiori-RADOS.c)
+has been developed and available since IOR 3.2. However, this backend currently
+has to be modified slightly to work with Mobject.
+
+### Installing with Spack
+
+If using Spack with the `mochi-spack-packages` repo to manage Mobject and its
+dependencies, one should simply install IOR with the Mobject variant by doing:
+
+```bash
+$ spack install ior+mobject@develop
+```
+
+> **_NOTE:_** If using a spack environment, one may need to instead add the IOR
+> spec to their environment:
+>
+>     spack add ior+mobject@develop
+>     spack install
+
+### Installing manually
+
+If managing Mobject and its dependencies manually, one should first obtain
+the IOR source code:
+
+```bash
+$ git clone https://github.com/shanedsnyder/ior.git
+```
+
+> **_NOTE:_** This fork of IOR is currently being used until the IOR RADOS
+> backend can be updated for the latest changes to IOR
+
+Then, the [the RADOS backend](https://github.com/shanedsnyder/ior/blob/master/src/aiori-RADOS.c)
+and [the main IOR header](https://github.com/shanedsnyder/ior/blob/master/src/ior.h)
+should be edited so that they include the Mobject header instead of the `rados/librados.h`
+header. This can be done by editing like:
+
+  `#include <rados/librados.h>` -> `#include <librados-mobject-store.h>`
+
+Finally, the reference to `-lrados` should be removed from [src/Makefile.am](https://github.com/shanedsnyder/ior/blob/master/src/Makefile.am#L70).
+
+Once these modifications have been made, IOR should be configured as shown below.
+Note that this assumes that the Mobject-related libraries are available in
+`LD_LIBRARY_PATH` and it also assumes that the pkg-config files for the Mobject
+libraries and dependencies are available in the pkg-config path. IOR can also be
+configured by directly passing the appropriate `CFLAGS` and `LDFLAGS` to configure.
+
+```bash
+$ ./bootstrap
+$ ./configure --with-rados --prefix=/path/to/install/ CFLAGS="$(pkg-config --cflags mobject-store)" LIBS="$(pkg-config --libs mobject-store)"
+$ make install
+```
+
+### Running IOR
+
+To run IOR with the RADOS backend:
+
+```bash
+$ ior -a RADOS [ior_options] --rados.user=foo --rados.pool=bar --rados.conf=baz
+```
+
+Note that the user, pool and conf arguments are ignored by Mobject, but are
+required by the IOR RADOS backend.
