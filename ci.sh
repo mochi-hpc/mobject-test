@@ -27,6 +27,8 @@ echo "Running sysctl"
 
 echo "Testing using make check"
 make check
+grep  -r \\[error\\] tests/*.sh.log
+ls /tmp/
 export MOBJECT_CLUSTER_FILE=$PWD/mobject.ssg
 bedrock na+sm -c $PWD/tests/config.json -v trace &
 ior -g -a RADOS -t 64k -b 128k --rados.user=foo --rados.pool=bar --rados.conf $MOBJECT_CLUSTER_FILE

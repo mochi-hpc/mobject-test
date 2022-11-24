@@ -66,9 +66,9 @@
                 "pipeline_nbuffers_per_pool" : 32,
                 "pipeline_first_buffer_size" : 65536,
                 "pipeline_multiplier" : 4,
-                "pmem_backend": {
+                "file_backend": {
                     "targets": [
-                        "/dev/shm/mobject.dat"
+                        "/tmp/mobject.dat"
                     ]
                 }
             },
