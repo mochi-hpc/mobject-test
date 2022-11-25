@@ -26,6 +26,7 @@ jobs:
     - name: Install openmpi
       run: |
         sudo apt-get update
+        sudo apt-get install -q -y gfortran
         sudo apt-get install -q -y autoconf
         sudo apt-get install -q -y automake
         sudo apt-get install -q -y cmake
@@ -34,7 +35,7 @@ jobs:
         sudo apt-get install -q -y openmpi-common
         sudo apt-get install -q -y zlib1g-dev
         sudo apt-get install -q -y diffutils
-        sudo apt-get install -q -y libdb-dev
+        sudo apt-get install -q -y libdb-dev         
         sudo apt-get install -q -y libedit-dev
         sudo apt-get install -q -y libncurses6
         sudo apt-get install -q -y libxml2-dev
@@ -50,7 +51,6 @@ jobs:
         spack external find boost
         spack external find cmake
         spack external find diffutils
-        spack external find gfortran        
         spack external find libedit
         spack external find libtool
         spack external find libiconv
