@@ -14,16 +14,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Spack
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: spack/spack
         path: ./spack
     - name: Checkout mochi-spack-packages
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Run a multi-line script
+    - name: Install gfortran
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gfortran
+        
+    - name: Run spack install mobject
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
