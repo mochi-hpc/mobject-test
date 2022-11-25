@@ -45,6 +45,7 @@ jobs:
       run: |
         . ./spack/share/spack/setup-env.sh
         spack compiler find
+        spack compilers
         spack external find autoconf
         spack external find automake
         spack external find berkeley-db
