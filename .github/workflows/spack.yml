@@ -16,23 +16,22 @@ jobs:
     - name: Checkout Spack
       uses: actions/checkout@v3
       with:
-        repository: hyoklee/spack
+        repository: spack/spack
         path: ./spack
     - name: Checkout mochi-spack-packages
       uses: actions/checkout@v3
       with:
         repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
-    - name: Install openmpi
+    - name: Install APT Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -q -y gfortran
         sudo apt-get install -q -y autoconf
         sudo apt-get install -q -y automake
         sudo apt-get install -q -y cmake
         sudo apt-get install -q -y libtool
         sudo apt-get install -q -y libtool-bin
-        sudo apt-get install -q -y openmpi-common
+        sudo apt-get install -q -y mpich
         sudo apt-get install -q -y zlib1g-dev
         sudo apt-get install -q -y diffutils
         sudo apt-get install -q -y libdb-dev         
@@ -56,8 +55,7 @@ jobs:
         spack external find libiconv
         spack external find libxml2
         spack external find m4
-        spack external find openmpi
-        spack external find mpi
+        spack external find mpich
         spack external find ncurses
         spack external find openssl
         spack external find perl
@@ -65,4 +63,4 @@ jobs:
         spack external find zlib
         spack external find xz        
         spack repo add ./mochi-spack-packages
-        spack install --test root mobject
+        spack install mobject
