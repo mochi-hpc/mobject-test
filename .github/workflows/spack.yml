@@ -1,4 +1,4 @@
-name: spack mobject
+name: spack mobject mpich
 
 on:
   push:
