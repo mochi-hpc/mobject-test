@@ -31,11 +31,10 @@ spack install mobject%gcc@11.2.0+bedrock
 
 Install the required packages in [spack.yaml](../spack.yaml) and load them.
 
-You must use 'dev-replace-sdskv-with-yokan' branch.
+Check out the Mobject source.
 ```
 git clone https://github.com/mochi-hpc/mobject
 cd mobject
-git checkout dev-replace-sdskv-with-yokan
 ```
 
 Load system modules.
@@ -99,20 +98,16 @@ If managing Mobject and its dependencies manually, one should first obtain
 the IOR source code:
 
 ```bash
-$ git clone https://github.com/shanedsnyder/ior.git
+$ git clone https://github.com/hpc/ior.git
 ```
 
-> **_NOTE:_** This fork of IOR is currently being used until the IOR RADOS
-> backend can be updated for the latest changes to IOR
-
-Then, the [the RADOS backend](https://github.com/shanedsnyder/ior/blob/master/src/aiori-RADOS.c)
-and [the main IOR header](https://github.com/shanedsnyder/ior/blob/master/src/ior.h)
-should be edited so that they include the Mobject header instead of the `rados/librados.h`
+Then, the [RADOS backend](https://github.com/hpc/ior/blob/main/src/aiori-RADOS.c#L24)
+should be edited so that it includes the Mobject header instead of the `rados/librados.h`
 header. This can be done by editing like:
 
   `#include <rados/librados.h>` -> `#include <librados-mobject-store.h>`
 
-Finally, the reference to `-lrados` should be removed from [src/Makefile.am](https://github.com/shanedsnyder/ior/blob/master/src/Makefile.am#L70).
+Finally, the reference to `-lrados` should be removed from [src/Makefile.am](https://github.com/hpc/ior/blob/main/src/Makefile.am#L94).
 
 Once these modifications have been made, IOR should be configured as shown below.
 Note that this assumes that the Mobject-related libraries are available in
