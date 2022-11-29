@@ -101,7 +101,7 @@ the IOR source code:
 $ git clone https://github.com/hpc/ior.git
 ```
 
-Then, the [RADOS backend](https://github.com/hpc/ior/blob/main/src/aiori-RADOS.c#24)
+Then, the [RADOS backend](https://github.com/hpc/ior/blob/main/src/aiori-RADOS.c#L24)
 should be edited so that it includes the Mobject header instead of the `rados/librados.h`
 header. This can be done by editing like:
 
