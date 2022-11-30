@@ -117,13 +117,13 @@ If using Spack with the `mochi-spack-packages` repo to manage Mobject and its
 dependencies, one should simply install IOR with the Mobject variant by doing:
 
 ```bash
-$ spack install ior@main+mobject ^mobject@main
+$ spack install ior@develop+mobject ^mobject@develop
 ```
 
 > **_NOTE:_** If using a spack environment, one may need to instead add the IOR
 > spec to their environment:
 >
->     spack add ior@main+mobject ^mobject@main
+>     spack add ior@develop+mobject ^mobject@develop
 >     spack install
 
 ### Installing manually
@@ -167,15 +167,27 @@ $ bedrock -c name_of_bedrock_config_file fabric_provider:// &
 
 Where `name_of_bedrock_config_file` points to the bedrock configuration file
 to use ([see here](https://github.com/mochi-hpc/mobject/blob/main/config/example.json)
-for an example) and `fabric_provider` would be the string representing the
-libfabric provider to use, such as `verbs://`, `tcp://`, etc. An example of
-this can be seen [here](https://github.com/mochi-hpc-experiments/mochi-tests/blob/main/perf-regression/polaris/run_ior.qsub#L41-L42).
+for an example) and `fabric_provider` is the string representing the libfabric
+provider to use, such as `verbs://`, `tcp://`, etc. An example of this can be
+seen [here](https://github.com/mochi-hpc-experiments/mochi-tests/blob/main/perf-regression/polaris/run_ior.qsub#L41-L42).
 
 > **_NOTE:_** It may currently be necessary to add a small wait via
 >
 >     sleep 5
 >
 > or similar to allow the bedrock server to come up before using it.
+
+When the Mobject server comes up, it will create a cluster configuration file
+according to the settings in the bedrock configuration file which should be
+pointed to by setting the `MOBJECT_CLUSTER_FILE` environment variable:
+
+```bash
+$ export MOBJECT_CLUSTER_FILE=mobject.ssg
+```
+
+Note that "mobject.ssg" is just a default name - [see here](https://github.com/mochi-hpc/mobject/blob/main/config/example.json#L6)
+for an example of where the configuration file name can be changed in the
+bedrock configuration file.
 
 Once the Mobject server is running, IOR can be run with the RADOS backend
 by doing:
@@ -186,6 +198,17 @@ $ ior -a RADOS [ior_options] --rados.user=foo --rados.pool=bar --rados.conf=baz
 
 Note that the user, pool and conf arguments are ignored by Mobject, but are
 required by the IOR RADOS backend.
+
+Once finished with the Mobject server, it can be taken down by using:
+
+```bash
+$ bedrock-shutdown -s cluster_file fabric_provider://
+```
+
+Where `cluster_file` is the file used to connect to the Mobject server which
+is pointed to by the `MOBJECT_CLUSTER_FILE` environment variable and where
+`fabric_provider` is the string representing the libfabric provider that
+the Mobject server was started with, such as `verbs://`, `tcp://`, etc.
 
 * How can I run IOR with Mobject using the HDF5 backend?
 
@@ -202,15 +225,15 @@ and their dependencies, one should simply install IOR and the VOL connector
 by doing:
 
 ```bash
-$ spack install ior@main+hdf5
-$ spack install hdf5-rados
+$ spack install ior@develop+hdf5 ^hdf5@develop-1.13
+$ spack install hdf5-rados ^mobject@develop
 ```
 
 > **_NOTE:_** If using a spack environment, one may need to instead add IOR and
 > the VOL connector specs to their environment:
 >
->     spack add ior@main+hdf5
->     spack add hdf5-rados
+>     spack add ior@develop+hdf5 ^hdf5@develop-1.13
+>     spack add hdf5-rados ^mobject@develop
 >     spack install
 
 ### Installing manually
@@ -267,7 +290,7 @@ $ bedrock -c name_of_bedrock_config_file fabric_provider:// &
 ```
 
 Where `name_of_bedrock_config_file` points to the bedrock configuration file
-to use and `fabric_provider` would be the string representing the libfabric
+to use and `fabric_provider` is the string representing the libfabric
 provider to use, such as `verbs://`, `tcp://`, etc.
 
 > **_NOTE:_** It may currently be necessary to add a small wait via
@@ -276,12 +299,25 @@ provider to use, such as `verbs://`, `tcp://`, etc.
 >
 > or similar to allow the bedrock server to come up before using it.
 
-Once the Mobject server is running, two environment variables should be set
-to instruct HDF5 how to load and use the RADOS VOL connector:
+When the Mobject server comes up, it will create a cluster configuration file
+according to the settings in the bedrock configuration file which should be
+pointed to by setting the `MOBJECT_CLUSTER_FILE` environment variable:
+
+```bash
+$ export MOBJECT_CLUSTER_FILE=mobject.ssg
+```
+
+Note that "mobject.ssg" is just a default name - [see here](https://github.com/mochi-hpc/mobject/blob/main/config/example.json#L6)
+for an example of where the configuration file name can be changed in the
+bedrock configuration file.
+
+Once the Mobject server is running, a few environment variables should be
+set to instruct HDF5 how to load and use the RADOS VOL connector:
 
 ```bash
 export HDF5_VOL_CONNECTOR=rados
 export HDF5_PLUGIN_PATH=/path/to/installed/connector
+export HDF5_RADOS_POOL=pool_name
 ```
 
 If the RADOS VOL connector was installed via spack, the following should
@@ -291,13 +327,31 @@ correctly set the HDF5 plugin path:
 export HDF5_PLUGIN_PATH="`spack location -i hdf5-rados`/lib"
 ```
 
+Note that anything can be set for the `HDF5_RADOS_POOL` environment variable
+as it is currently unused when the VOL connector is used with Mobject, but
+must still be set to something.
+
 Finally, once these environment variables are set and the bedrock server
 for Mobject has come up, IOR can be run with the HDF5 backend by doing:
 
 ```bash
-$ ior -a HDF5 [ior_options] [hdf5_options]
+$ ior -a HDF5 [ior_options] [hdf5_options] -E -k
 ```
 
 > Refer to https://github.com/hpc/ior/blob/main/README_HDF5 for a list
 > of HDF5 options that can be specified
 
+Note that the `-E -k` options are used because the RADOS VOL connector
+currently doesn't support file deletion and will trigger an error an IOR
+when it attempts to remove the test file it created.
+
+Once finished with the Mobject server, it can be taken down by using:
+
+```bash
+$ bedrock-shutdown -s cluster_file fabric_provider://
+```
+
+Where `cluster_file` is the file used to connect to the Mobject server which
+is pointed to by the `MOBJECT_CLUSTER_FILE` environment variable and where
+`fabric_provider` is the string representing the libfabric provider that
+the Mobject server was started with, such as `verbs://`, `tcp://`, etc.
