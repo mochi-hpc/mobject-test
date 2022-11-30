@@ -13,13 +13,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Install APT Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gfortran-12    
     - name: Checkout Spack
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: spack/spack
         path: ./spack
     - name: Checkout mochi-spack-packages
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
@@ -27,4 +31,4 @@ jobs:
       run: |
         . ./spack/share/spack/setup-env.sh
         spack repo add ./mochi-spack-packages
-        spack install --test root mobject+bedrock
+        spack install mobject+bedrock
