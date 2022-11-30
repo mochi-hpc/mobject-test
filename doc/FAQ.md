@@ -1,10 +1,12 @@
 # Frequently Asked Questions
 
-* How can HDF5 RADOS VOL plugin work with Mobject?
+## How can HDF5 RADOS VOL plugin work with Mobject?
 
-  See [h5VLrados.c](https://github.com/HDFGroup/vol-rados/blob/master/src/H5VLrados.c) to understand how HDF5 RADOS VOL plugin calls APIs.
+  See [h5VLrados.c](
+  https://github.com/HDFGroup/vol-rados/blob/master/src/H5VLrados.c) 
+  to understand how HDF5 RADOS VOL plugin calls APIs.
 
-* How can I install Mobject on Polaris?
+## How can I install Mobject on Polaris?
 
   You can execute the following script.
 ```
@@ -41,7 +43,7 @@ spack env activate mochi-env
 spack install mobject%gcc@11.2.0+bedrock
 ```
 
-* How can I test Mobject on Polaris from source code?
+## How can I test Mobject on Polaris from source code?
 
 Install the required packages in [spack.yaml](../spack.yaml) and load them.
 
@@ -85,7 +87,25 @@ Testsuite summary for mobject 0.7
 ============================================================================
 ```
 
-* How can I run IOR with Mobject using the RADOS backend?
+
+## How can I test Mobject with Polaris SSD (/local/scratch)?
+
+Submit a qsub job with the following [config.json](../tests/config.json) change.
+```
+                "pmem_backend": {
+                    "targets": [
+                        "/local/scratch/mobject.dat"
+                    ]
+```
+You can change `pmem` to `file`.
+```
+                "file_backend": {
+                    "targets": [
+                        "/local/scratch/mobject.dat"
+                    ]
+```
+
+## How can I run IOR with Mobject using the RADOS backend?
 
 An [IOR backend for RADOS](https://github.com/hpc/ior/blob/main/src/aiori-RADOS.c)
 has been developed and available since IOR 3.2. However, this backend currently
@@ -280,3 +300,4 @@ $ ior -a HDF5 [ior_options] [hdf5_options]
 
 > Refer to https://github.com/hpc/ior/blob/main/README_HDF5 for a list
 > of HDF5 options that can be specified
+
