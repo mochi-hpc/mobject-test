@@ -39,7 +39,7 @@ jobs:
     - name: Checkout mochi-spack-packages
       uses: actions/checkout@v3
       with:
-        repository: hyoklee/mochi-spack-packages
+        repository: mochi-hpc/mochi-spack-packages
         path: ./mochi-spack-packages
     - name: Run spack install ior
       run: |
