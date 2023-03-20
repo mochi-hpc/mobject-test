@@ -355,4 +355,3 @@ Where `cluster_file` is the file used to connect to the Mobject server which
 is pointed to by the `MOBJECT_CLUSTER_FILE` environment variable and where
 `fabric_provider` is the string representing the libfabric provider that
 the Mobject server was started with, such as `verbs://`, `tcp://`, etc.
-
