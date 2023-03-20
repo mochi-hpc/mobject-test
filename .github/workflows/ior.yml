@@ -74,6 +74,7 @@ jobs:
         echo $LD_LIBRARY_PATH
         ls
         ./prepare.sh
+        ./prepare_gh.sh
         ./configure --enable-bedrock
         make
         sudo ./ci.sh        
