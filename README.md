@@ -10,7 +10,7 @@ built using a composition of [Mochi](https://mochi.readthedocs.io) components:
  * [mochi-bake](https://github.com/mochi-hpc/mochi-bake) (for bulk storage)
  * [mochi-bedrock](https://github.com/mochi-hpc/mochi-bedrock) 
    (for configuration and bootstrapping) 
- * [mochi-sdskv](https://github.com/mochi-hpc/mochi-sdskv)
+ * [mochi-yokan](https://github.com/mochi-hpc/mochi-yokan)
    (for metadata and log indexing)
  * [mochi-ssg](https://github.com/mochi-hpc/mochi-ssg) (for group membership)
 

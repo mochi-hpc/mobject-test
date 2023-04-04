@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <bedrock/module.h>
 #include "mobject-server.h"
 
@@ -14,22 +15,22 @@ static int mobject_register_provider(bedrock_args_t             args,
     mobject_args.pool                              = pool;
     mobject_args.json_config                       = config;
 
-    size_t num_sdskv_ph
+    size_t num_yokan_ph
         = bedrock_args_get_num_dependencies(args, "yokan_provider_handle");
     size_t num_bake_ph
-        = bedrock_args_get_num_dependencies(args, "bake_provider_handle");
+        = bedrock_args_get_num_dependencies(args, "bake_provider_handles");
 
-    if (num_sdskv_ph != 1) {
+    if (num_yokan_ph != 1) {
         margo_error(
             mid,
             "mobject_register_provider: expected 1 yokan provider handle,"
             " %ld provided",
-            num_sdskv_ph);
+            num_yokan_ph);
     }
-    if (num_bake_ph != 1) {
+    if (num_bake_ph == 0) {
         margo_error(
             mid,
-            "mobject_register_provider: expected 1 bake provider handle,"
+            "mobject_register_provider: expected at least 1 bake provider handle,"
             " %ld provided",
             num_bake_ph);
     }
@@ -37,10 +38,12 @@ static int mobject_register_provider(bedrock_args_t             args,
     yk_provider_handle_t yokan_ph
         = bedrock_args_get_dependency(args, "yokan_provider_handle", 0);
 
-    bake_provider_handle_t bake_ph
-        = bedrock_args_get_dependency(args, "bake_provider_handle", 0);
+    bake_provider_handle_t* bake_phs = alloca(num_bake_ph*sizeof(*bake_phs));
+    for(unsigned i = 0; i < num_bake_ph; i++) {
+        bake_phs[i] = bedrock_args_get_dependency(args, "bake_provider_handles", i);
+    }
 
-    return mobject_provider_register(mid, provider_id, bake_ph, yokan_ph,
+    return mobject_provider_register(mid, provider_id, num_bake_ph, bake_phs, yokan_ph,
                                      &mobject_args,
                                      (mobject_provider_t*)provider);
 }
@@ -90,7 +93,7 @@ static int mobject_destroy_provider_handle(bedrock_module_provider_handle_t ph)
 
 static struct bedrock_dependency mobject_provider_deps[3]
     = {{"yokan_provider_handle", "yokan", BEDROCK_REQUIRED},
-       {"bake_provider_handle", "bake", BEDROCK_REQUIRED},
+       {"bake_provider_handles", "bake", BEDROCK_REQUIRED|BEDROCK_ARRAY},
        BEDROCK_NO_MORE_DEPENDENCIES};
 
 static struct bedrock_module mobject

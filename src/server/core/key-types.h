@@ -44,6 +44,11 @@ typedef struct segment_key_t {
     uint64_t end_index;   // end index is not included
 } segment_key_t;
 
+typedef struct region_descriptor_t {
+    bake_target_id_t tid;
+    bake_region_id_t rid;
+} region_descriptor_t;
+
 typedef struct omap_key_t {
     oid_t oid;
     char  key[1];
@@ -52,6 +57,6 @@ typedef struct omap_key_t {
 #define MAX_OMAP_KEY_SIZE 128
 #define MAX_OMAP_VAL_SIZE 256
 
-#define SMALL_REGION_THRESHOLD (sizeof(bake_region_id_t))
+#define SMALL_REGION_THRESHOLD (sizeof(region_descriptor_t))
 
 #endif

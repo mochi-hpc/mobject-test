@@ -108,14 +108,11 @@ void read_op_exec_read(void*    u,
     auto              vargs = static_cast<server_visitor_args_t>(u);
     margo_instance_id mid   = vargs->provider->mid;
     ENTERING;
-    bake_provider_handle_t bph = vargs->provider->bake_ph;
-    bake_target_id_t       bti = vargs->provider->bake_tid;
-    bake_region_id_t       rid;
-    hg_bulk_t              remote_bulk     = vargs->bulk_handle;
-    const char*            remote_addr_str = vargs->client_addr_str;
-    hg_addr_t              remote_addr     = vargs->client_addr;
-    yk_database_handle_t   seg_dbh         = vargs->provider->segment_dbh;
-    yk_return_t            yret;
+    hg_bulk_t            remote_bulk     = vargs->bulk_handle;
+    const char*          remote_addr_str = vargs->client_addr_str;
+    hg_addr_t            remote_addr     = vargs->client_addr;
+    yk_database_handle_t seg_dbh         = vargs->provider->segment_dbh;
+    yk_return_t          yret;
 
     uint64_t client_start_index = offset;
     uint64_t client_end_index   = offset + len;
@@ -141,8 +138,8 @@ void read_op_exec_read(void*    u,
     size_t        max_segments = 128; // XXX this is a pretty arbitrary number
     segment_key_t segment_keys[max_segments];
     hg_size_t     segment_keys_size[max_segments];
-    bake_region_id_t segment_data[max_segments];
-    hg_size_t        segment_data_size[max_segments];
+    region_descriptor_t segment_data[max_segments];
+    hg_size_t           segment_data_size[max_segments];
 
     bool done          = false;
     int  seg_start_ndx = 0;
@@ -151,15 +148,15 @@ void read_op_exec_read(void*    u,
 
         yret = yk_list_keyvals_packed(
             seg_dbh, YOKAN_MODE_DEFAULT, (const void*)&lb,
-            sizeof(lb),                              /* strict lower bound */
-            (const void*)&oid, sizeof(oid),          /* prefix */
-            max_segments,                            /* count */
-            segment_keys,                            /* keys buffer */
-            max_segments * sizeof(segment_key_t),    /* keys buffer size */
-            segment_keys_size,                       /* key sizes */
-            segment_data,                            /* data buffer */
-            max_segments * sizeof(bake_region_id_t), /* data buffer size */
-            segment_data_size);                      /* data sizes */
+            sizeof(lb),                                 /* strict lower bound */
+            (const void*)&oid, sizeof(oid),             /* prefix */
+            max_segments,                               /* count */
+            segment_keys,                               /* keys buffer */
+            max_segments * sizeof(segment_key_t),       /* keys buffer size */
+            segment_keys_size,                          /* key sizes */
+            segment_data,                               /* data buffer */
+            max_segments * sizeof(region_descriptor_t), /* data buffer size */
+            segment_data_size);                         /* data sizes */
 
         if (yret != YOKAN_SUCCESS) {
             margo_error(mid,
@@ -173,8 +170,8 @@ void read_op_exec_read(void*    u,
         size_t i;
         for (i = seg_start_ndx; i < max_segments; i++) {
 
-            const segment_key_t&    seg    = segment_keys[i];
-            const bake_region_id_t& region = segment_data[i];
+            const segment_key_t&       seg    = segment_keys[i];
+            const region_descriptor_t& region = segment_data[i];
 
             if (segment_keys_size[i] == YOKAN_NO_MORE_KEYS || seg.oid != oid
                 || coverage.full()) {
@@ -193,16 +190,36 @@ void read_op_exec_read(void*    u,
                 break;
 
             case seg_type_t::BAKE_REGION: {
+                // find the bake provider handle associated with the target
+                bake_provider_handle_t bake_ph = BAKE_PROVIDER_HANDLE_NULL;
+                for (unsigned j = 0; j < vargs->provider->num_bake_targets;
+                     j++) {
+                    if (memcmp(&region.tid,
+                               &vargs->provider->bake_targets[j].tid,
+                               sizeof(bake_target_id_t))
+                        == 0) {
+                        bake_ph = vargs->provider->bake_targets[j].ph;
+                        break;
+                    }
+                }
+                if (!bake_ph) {
+                    margo_error(mid,
+                                "[mobject] %s:%d: could not find bake provider "
+                                "handle associated with stored target id",
+                                __func__, __LINE__);
+                    LEAVING;
+                    return;
+                }
                 auto ranges = coverage.set(seg.start_index, seg.end_index);
                 for (auto r : ranges) {
                     uint64_t segment_size  = r.end - r.start;
                     uint64_t region_offset = r.start - seg.start_index;
                     uint64_t remote_offset = r.start - offset;
                     uint64_t bytes_read    = 0;
-                    int bret = bake_proxy_read(bph, bti, region, region_offset,
-                                               remote_bulk, remote_offset,
-                                               remote_addr_str, segment_size,
-                                               &bytes_read);
+                    int bret = bake_proxy_read(bake_ph, region.tid, region.rid,
+                                               region_offset, remote_bulk,
+                                               remote_offset, remote_addr_str,
+                                               segment_size, &bytes_read);
                     if (bret != 0) {
                         *prval = -1;
                         margo_error(
