@@ -148,29 +148,14 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
     ABT_mutex_unlock(ABT_MUTEX_MEMORY_GET_HANDLE(&provider->stats_mutex));
 
     if (len > SMALL_REGION_THRESHOLD) {
-        ret = bake_create(bake_ph, region.tid, len, &region.rid);
+        ret = bake_create_write_persist_proxy(bake_ph, region.tid, remote_bulk, buf.as_offset,
+                remote_addr_str, len, &region.rid);
         if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_create returned %d",
+            margo_error(mid, "[mobject] %s:%d: bake_create_write_persist_proxy returned %d",
                         __func__, __LINE__, ret);
             LEAVING;
             return;
         }
-        ret = bake_proxy_write(bake_ph, region.tid, region.rid, 0, remote_bulk,
-                               buf.as_offset, remote_addr_str, len);
-        if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_proxy_write returned %d",
-                        __func__, __LINE__, ret);
-            LEAVING;
-            return;
-        }
-        ret = bake_persist(bake_ph, region.tid, region.rid, 0, len);
-        if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_persist returned %d",
-                        __func__, __LINE__, ret);
-            LEAVING;
-            return;
-        }
-
         insert_region_log_entry(provider, oid, offset, len, &region);
     } else {
         margo_instance_id mid = vargs->provider->mid;
@@ -353,24 +338,10 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
             = {.tid = vargs->provider->bake_targets[bake_target_idx].tid,
                .rid = 0};
 
-        ret = bake_create(bake_ph, region.tid, len, &region.rid);
+        ret = bake_create_write_persist_proxy(bake_ph, region.tid, remote_bulk, buf.as_offset,
+                remote_addr_str, len, &region.rid);
         if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_create returned %d",
-                        __func__, __LINE__, ret);
-            LEAVING;
-            return;
-        }
-        ret = bake_proxy_write(bake_ph, region.tid, region.rid, 0, remote_bulk,
-                               buf.as_offset, remote_addr_str, len);
-        if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_proxy_write returned %d",
-                        __func__, __LINE__, ret);
-            LEAVING;
-            return;
-        }
-        ret = bake_persist(bake_ph, region.tid, region.rid, 0, len);
-        if (ret != 0) {
-            margo_error(mid, "[mobject] %s:%d: bake_persist returned %d",
+            margo_error(mid, "[mobject] %s:%d: bake_create_write_persisti_proxy returned %d",
                         __func__, __LINE__, ret);
             LEAVING;
             return;
@@ -416,10 +387,6 @@ void write_op_exec_remove(void* u)
     ENTERING;
     const char* object_name     = vargs->object_name;
     oid_t       oid             = vargs->oid;
-    unsigned    bake_target_idx = oid % vargs->provider->num_bake_targets;
-    bake_provider_handle_t bake_ph
-        = vargs->provider->bake_targets[bake_target_idx].ph;
-    bake_target_id_t bti = vargs->provider->bake_targets[bake_target_idx].tid;
     yk_database_handle_t name_dbh = vargs->provider->name_dbh;
     yk_database_handle_t oid_dbh  = vargs->provider->oid_dbh;
     yk_database_handle_t seg_dbh  = vargs->provider->segment_dbh;
@@ -451,11 +418,11 @@ void write_op_exec_remove(void* u)
     lb.timestamp = time(NULL);
     lb.seq_id    = MOBJECT_SEQ_ID_MAX;
 
-    size_t        max_segments = 128; // XXX this is a pretty arbitrary number
-    segment_key_t segment_keys[max_segments];
-    size_t        segment_keys_sizes[max_segments];
-    bake_region_id_t segment_data[max_segments];
-    size_t           segment_data_sizes[max_segments];
+    size_t              max_segments = 128; // XXX this is a pretty arbitrary number
+    segment_key_t       segment_keys[max_segments];
+    size_t              segment_keys_sizes[max_segments];
+    region_descriptor_t segment_data[max_segments];
+    size_t              segment_data_sizes[max_segments];
 
     /* iterate over and remove all segments for this oid */
     bool done = false;
@@ -470,7 +437,7 @@ void write_op_exec_remove(void* u)
             max_segments * sizeof(segment_key_t),    /* keys_buf_size */
             segment_keys_sizes,                      /* key sizes */
             segment_data,                            /* vals buffer */
-            max_segments * sizeof(bake_region_id_t), /* vals_buf_size */
+            max_segments * sizeof(region_descriptor_t), /* vals_buf_size */
             segment_data_sizes);                     /* vals sizes */
 
         if (yret != YOKAN_SUCCESS) {
@@ -483,8 +450,8 @@ void write_op_exec_remove(void* u)
 
         size_t i;
         for (i = 0; i < max_segments; ++i) {
-            const segment_key_t&    seg    = segment_keys[i];
-            const bake_region_id_t& region = segment_data[i];
+            const segment_key_t&       seg    = segment_keys[i];
+            const region_descriptor_t& region = segment_data[i];
 
             if (segment_keys_sizes[i] == YOKAN_NO_MORE_KEYS) {
                 done = true;
@@ -492,7 +459,25 @@ void write_op_exec_remove(void* u)
             }
 
             if (seg.type == seg_type_t::BAKE_REGION) {
-                bret = bake_remove(bake_ph, bti, region);
+                // find the provider handle associated with the target
+                bake_provider_handle_t bake_ph = BAKE_PROVIDER_HANDLE_NULL;
+                for (unsigned j = 0; j < vargs->provider->num_bake_targets; j++) {
+                    if (memcmp(&region.tid,
+                                &vargs->provider->bake_targets[j].tid,
+                                sizeof(bake_target_id_t))
+                            == 0) {
+                        bake_ph = vargs->provider->bake_targets[j].ph;
+                    }
+                }
+                if (!bake_ph) {
+                    margo_error(mid,
+                                "[mobject] %s:%d: could not find bake provider "
+                                "handle associated with stored target id",
+                                __func__, __LINE__);
+                    LEAVING;
+                    return;
+                }
+                bret = bake_remove(bake_ph, region.tid, region.rid);
                 if (yret != BAKE_SUCCESS) {
                     margo_error(mid, "[mobject] %s:%d: bake_remove returned %d",
                                 __func__, __LINE__, bret);

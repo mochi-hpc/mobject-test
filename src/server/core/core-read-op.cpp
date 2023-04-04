@@ -192,13 +192,14 @@ void read_op_exec_read(void*    u,
             case seg_type_t::BAKE_REGION: {
                 // find the bake provider handle associated with the target
                 bake_provider_handle_t bake_ph = BAKE_PROVIDER_HANDLE_NULL;
-                for (unsigned i = 0; i < vargs->provider->num_bake_targets;
-                     i++) {
+                for (unsigned j = 0; j < vargs->provider->num_bake_targets;
+                     j++) {
                     if (memcmp(&region.tid,
-                               &vargs->provider->bake_targets[i].tid,
+                               &vargs->provider->bake_targets[j].tid,
                                sizeof(bake_target_id_t))
                         == 0) {
-                        bake_ph = vargs->provider->bake_targets[i].ph;
+                        bake_ph = vargs->provider->bake_targets[j].ph;
+                        break;
                     }
                 }
                 if (!bake_ph) {
