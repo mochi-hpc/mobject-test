@@ -36,7 +36,8 @@ static void mobject_finalize_cb(void* data);
 
 int mobject_provider_register(margo_instance_id                  mid,
                               uint16_t                           provider_id,
-                              bake_provider_handle_t             bake_ph,
+                              unsigned                           num_bake_phs,
+                              const bake_provider_handle_t*      bake_phs,
                               yk_provider_handle_t               yokan_ph,
                               struct mobject_provider_init_args* args,
                               mobject_provider_t*                provider)
@@ -69,10 +70,10 @@ int mobject_provider_register(margo_instance_id                  mid,
     tmp_provider->ref_count   = 1;
 
     /* Bake settings initialization */
-    {
-
-        uint64_t         num_targets;
-        bake_target_id_t tids[128];
+    for(unsigned i = 0; i < num_bake_phs; i++) {
+        bake_provider_handle_t bake_ph = bake_phs[i];
+        uint64_t               num_targets;
+        bake_target_id_t       tids[128];
         ret = bake_probe(bake_ph, 128, tids, &num_targets);
         if (ret != 0) {
             margo_error(mid,
@@ -88,14 +89,18 @@ int mobject_provider_register(margo_instance_id                  mid,
             free(tmp_provider);
             return -1;
         }
-
-        tmp_provider->num_bake_targets = num_targets;
+        unsigned k = tmp_provider->num_bake_targets;
+        tmp_provider->bake_targets = realloc(tmp_provider->bake_targets,
+            (num_targets + k)*sizeof(*tmp_provider->bake_targets));
+        memset(tmp_provider->bake_targets + k, 0,
+               num_targets*sizeof(*tmp_provider->bake_targets));
         tmp_provider->bake_targets     = (struct mobject_bake_target*)calloc(
             num_targets, sizeof(*tmp_provider->bake_targets));
-        for (unsigned i = 0; i < num_targets; i++) {
-            tmp_provider->bake_targets[i].ph  = bake_ph;
-            tmp_provider->bake_targets[i].tid = tids[i];
+        for (unsigned j = 0; j < num_targets; j++) {
+            tmp_provider->bake_targets[k+j].ph  = bake_ph;
+            tmp_provider->bake_targets[k+j].tid = tids[j];
             bake_provider_handle_ref_incr(bake_ph);
+            tmp_provider->num_bake_targets += 1;
         }
     }
     /* Yokan settings initialization */
