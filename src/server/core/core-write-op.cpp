@@ -130,7 +130,7 @@ void write_op_exec_write(void* u, buffer_u buf, size_t len, uint64_t offset)
     unsigned                 bake_target_idx = oid % provider->num_bake_targets;
     bake_provider_handle_t bake_ph = provider->bake_targets[bake_target_idx].ph;
     region_descriptor_t    region
-        = {.tid = provider->bake_targets[bake_target_idx].tid, .rid = 0};
+        = {provider->bake_targets[bake_target_idx].tid, 0};
     hg_bulk_t   remote_bulk     = vargs->bulk_handle;
     const char* remote_addr_str = vargs->client_addr_str;
     hg_addr_t   remote_addr     = vargs->client_addr;
@@ -234,8 +234,7 @@ void write_op_exec_writesame(
         bake_provider_handle_t bake_ph
             = vargs->provider->bake_targets[bake_target_idx].ph;
         region_descriptor_t region
-            = {.tid = vargs->provider->bake_targets[bake_target_idx].tid,
-               .rid = 0};
+            = {vargs->provider->bake_targets[bake_target_idx].tid, 0};
 
         ret = bake_create(bake_ph, region.tid, data_len, &region.rid);
         if (ret != 0) {
@@ -335,8 +334,7 @@ void write_op_exec_append(void* u, buffer_u buf, size_t len)
         bake_provider_handle_t bake_ph
             = vargs->provider->bake_targets[bake_target_idx].ph;
         region_descriptor_t region
-            = {.tid = vargs->provider->bake_targets[bake_target_idx].tid,
-               .rid = 0};
+            = {vargs->provider->bake_targets[bake_target_idx].tid, 0};
 
         ret = bake_create_write_persist_proxy(bake_ph, region.tid, remote_bulk, buf.as_offset,
                 remote_addr_str, len, &region.rid);
