@@ -65,7 +65,7 @@ jobs:
         spack external find zlib
         spack external find xz
         spack repo add ./mochi-spack-packages
-        spack install ior@develop+mobject ^mobject@develop+bedrock ^mercury@develop~boostsys
+        spack install ior@develop+mobject ^mobject@develop+bedrock ^mercury@master~boostsys
         spack load ior
         spack view --verbose symlink install ior@develop+mobject -i
         export LD_LIBRARY_PATH=$PWD/install/lib:$PWD/install/lib64
