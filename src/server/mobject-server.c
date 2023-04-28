@@ -36,7 +36,8 @@ static void mobject_finalize_cb(void* data);
 
 int mobject_provider_register(margo_instance_id                  mid,
                               uint16_t                           provider_id,
-                              bake_provider_handle_t             bake_ph,
+                              unsigned                           num_bake_phs,
+                              const bake_provider_handle_t*      bake_phs,
                               yk_provider_handle_t               yokan_ph,
                               struct mobject_provider_init_args* args,
                               mobject_provider_t*                provider)
@@ -67,29 +68,40 @@ int mobject_provider_register(margo_instance_id                  mid,
     tmp_provider->provider_id = provider_id;
     tmp_provider->pool        = args ? args->pool : ABT_POOL_NULL;
     tmp_provider->ref_count   = 1;
-    ABT_mutex_create(&tmp_provider->mutex);
-    ABT_mutex_create(&tmp_provider->stats_mutex);
 
     /* Bake settings initialization */
-    bake_provider_handle_ref_incr(bake_ph);
-    tmp_provider->bake_ph = bake_ph;
-    uint64_t num_targets;
-    ret = bake_probe(bake_ph, 1, &(tmp_provider->bake_tid), &num_targets);
-    if (ret != 0) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to probe bake server for targets");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        free(tmp_provider);
-        return -1;
-    }
-    if (num_targets < 1) {
-        margo_error(mid,
-                    "mobject_provider_register(): "
-                    "unable to find a target on bake provider");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        free(tmp_provider);
-        return -1;
+    for(unsigned i = 0; i < num_bake_phs; i++) {
+        bake_provider_handle_t bake_ph = bake_phs[i];
+        uint64_t               num_targets;
+        bake_target_id_t       tids[128];
+        ret = bake_probe(bake_ph, 128, tids, &num_targets);
+        if (ret != 0) {
+            margo_error(mid,
+                        "mobject_provider_register(): "
+                        "unable to probe bake server for targets");
+            free(tmp_provider);
+            return -1;
+        }
+        if (num_targets == 0) {
+            margo_error(mid,
+                        "mobject_provider_register(): "
+                        "unable to find a target on bake provider");
+            free(tmp_provider);
+            return -1;
+        }
+        unsigned k = tmp_provider->num_bake_targets;
+        tmp_provider->bake_targets = realloc(tmp_provider->bake_targets,
+            (num_targets + k)*sizeof(*tmp_provider->bake_targets));
+        memset(tmp_provider->bake_targets + k, 0,
+               num_targets*sizeof(*tmp_provider->bake_targets));
+        tmp_provider->bake_targets     = (struct mobject_bake_target*)calloc(
+            num_targets, sizeof(*tmp_provider->bake_targets));
+        for (unsigned j = 0; j < num_targets; j++) {
+            tmp_provider->bake_targets[k+j].ph  = bake_ph;
+            tmp_provider->bake_targets[k+j].tid = tids[j];
+            bake_provider_handle_ref_incr(bake_ph);
+            tmp_provider->num_bake_targets += 1;
+        }
     }
     /* Yokan settings initialization */
     yk_database_id_t db_id;
@@ -103,9 +115,7 @@ int mobject_provider_register(margo_instance_id                  mid,
         margo_error(
             mid,
             "[mobject] Unable to find mobject_oid_map from Yokan provider");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        free(tmp_provider);
-        return -1;
+        goto error;
     }
     yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
                               yokan_ph->provider_id, db_id,
@@ -119,10 +129,7 @@ int mobject_provider_register(margo_instance_id                  mid,
         margo_error(
             mid,
             "[mobject] Unable to find mobject_name_map from Yokan provider");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        yk_database_handle_release(tmp_provider->oid_dbh);
-        free(tmp_provider);
-        return -1;
+        goto error;
     }
     yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
                               yokan_ph->provider_id, db_id,
@@ -136,11 +143,7 @@ int mobject_provider_register(margo_instance_id                  mid,
         margo_error(
             mid,
             "[mobject] Unable to find mobject_seg_map from Yokan provider");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        yk_database_handle_release(tmp_provider->name_dbh);
-        yk_database_handle_release(tmp_provider->oid_dbh);
-        free(tmp_provider);
-        return -1;
+        goto error;
     }
     yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
                               yokan_ph->provider_id, db_id,
@@ -154,12 +157,7 @@ int mobject_provider_register(margo_instance_id                  mid,
         margo_error(
             mid,
             "[mobject] Unable to find mobject_omap_map from Yokan provider");
-        bake_provider_handle_release(tmp_provider->bake_ph);
-        yk_database_handle_release(tmp_provider->name_dbh);
-        yk_database_handle_release(tmp_provider->segment_dbh);
-        yk_database_handle_release(tmp_provider->oid_dbh);
-        free(tmp_provider);
-        return -1;
+        goto error;
     }
     yk_database_handle_create(yokan_ph->client, yokan_ph->addr,
                               yokan_ph->provider_id, db_id,
@@ -198,6 +196,10 @@ int mobject_provider_register(margo_instance_id                  mid,
     *provider = tmp_provider;
 
     return 0;
+
+error:
+    mobject_finalize_cb((void*)tmp_provider);
+    return -1;
 }
 
 static hg_return_t mobject_write_op_ult(hg_handle_t h)
@@ -310,7 +312,7 @@ static hg_return_t mobject_server_clean_ult(hg_handle_t h)
     margo_instance_id mid = margo_hg_handle_get_instance(h);
 
     /* XXX clean up mobject data */
-    margo_error(mid, "mobject_server_cleab_ult(): operation not supported");
+    margo_error(mid, "mobject_server_clean_ult(): operation not supported");
 
     ret = margo_respond(h, NULL);
     assert(ret == HG_SUCCESS);
@@ -333,7 +335,7 @@ static hg_return_t mobject_server_stat_ult(hg_handle_t h)
     struct mobject_provider* provider = margo_registered_data(mid, info->id);
     gethostname(my_hostname, sizeof(my_hostname));
 
-    ABT_mutex_lock(provider->stats_mutex);
+    ABT_mutex_lock(ABT_MUTEX_MEMORY_GET_HANDLE(&provider->stats_mutex));
     margo_info(mid,
                "Server (host: %s):\n"
                "\tSegments allocated: %u\n"
@@ -344,7 +346,7 @@ static hg_return_t mobject_server_stat_ult(hg_handle_t h)
                provider->total_seg_wr_duration,
                (provider->total_seg_size / (1024.0 * 1024.0)
                 / provider->total_seg_wr_duration));
-    ABT_mutex_unlock(provider->stats_mutex);
+    ABT_mutex_unlock(ABT_MUTEX_MEMORY_GET_HANDLE(&provider->stats_mutex));
 
     ret = margo_respond(h, NULL);
     assert(ret == HG_SUCCESS);
@@ -360,18 +362,20 @@ static void mobject_finalize_cb(void* data)
 {
     mobject_provider_t provider = (mobject_provider_t)data;
 
-    margo_deregister(provider->mid, provider->write_op_id);
-    margo_deregister(provider->mid, provider->read_op_id);
-    margo_deregister(provider->mid, provider->clean_id);
-    margo_deregister(provider->mid, provider->stat_id);
+    if (provider->write_op_id)
+        margo_deregister(provider->mid, provider->write_op_id);
+    if (provider->read_op_id)
+        margo_deregister(provider->mid, provider->read_op_id);
+    if (provider->clean_id) margo_deregister(provider->mid, provider->clean_id);
+    if (provider->stat_id) margo_deregister(provider->mid, provider->stat_id);
 
     yk_database_handle_release(provider->oid_dbh);
     yk_database_handle_release(provider->name_dbh);
     yk_database_handle_release(provider->segment_dbh);
     yk_database_handle_release(provider->omap_dbh);
-    bake_provider_handle_release(provider->bake_ph);
-    ABT_mutex_free(&provider->mutex);
-    ABT_mutex_free(&provider->stats_mutex);
+    for (unsigned i = 0; i < provider->num_bake_targets; i++) {
+        bake_provider_handle_release(provider->bake_targets[i].ph);
+    }
 
     free(provider);
 }
