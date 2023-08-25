@@ -81,7 +81,7 @@
             "provider_id" : 1,
             "config" : {},
             "dependencies" : {
-                "bake_provider_handle" : "storage@local",
+                "bake_provider_handles" : ["storage@local"],
                 "yokan_provider_handle" : "metadata@local"
             }
         }
